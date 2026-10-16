@@ -102,10 +102,6 @@ function Resultado({ resultado }) {
         <Seccion titulo="Limitaciones del análisis" elementos={resultado.limitaciones} icono={CircleHelp} />
       </div>
       <Seccion titulo="Zonas no evaluadas" elementos={resultado.zonas_no_evaluadas} icono={ShieldAlert} />
-      <p className="text-xs leading-relaxed text-slate-500">
-        Evaluación preliminar basada exclusivamente en imágenes. No sustituye una inspección física,
-        peritaje ni diagnóstico de seguridad.
-      </p>
     </div>
   );
 }
