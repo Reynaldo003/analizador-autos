@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  AlertCircle, ArrowRight, Camera, CheckCircle2, CircleHelp, ClipboardCheck,
-  Film, ImagePlus, LoaderCircle, RotateCcw, SearchCheck, ShieldAlert,
+  AlertCircle, ArrowRight, Camera, CircleHelp, ClipboardCheck,
+  ImagePlus, LoaderCircle, RotateCcw, SearchCheck, ShieldAlert,
   Sparkles, UploadCloud, X,
 } from "lucide-react";
 import { extraerFotogramas } from "./lib/extraerFotogramas.js";
@@ -10,70 +10,102 @@ const MAX_IMAGENES = 12;
 const MAX_VIDEO = 80 * 1024 * 1024;
 const MAX_FOTO = 8 * 1024 * 1024;
 const formatosImagen = ["image/jpeg", "image/png", "image/webp"];
+
 const estilosEstado = {
-  "Sin daños visibles": "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-  "Posibles daños": "border-amber-500/30 bg-amber-500/10 text-amber-300",
-  "Daños visibles": "border-rose-500/30 bg-rose-500/10 text-rose-300",
-  "No concluyente": "border-slate-500/30 bg-slate-500/10 text-slate-300",
+  "Sin daños visibles": "border-emerald-200 bg-emerald-50 text-emerald-800",
+  "Posibles daños": "border-amber-200 bg-amber-50 text-amber-800",
+  "Daños visibles": "border-rose-200 bg-rose-50 text-rose-800",
+  "No concluyente": "border-vw-borde bg-vw-claro text-vw",
 };
 
-function Etiqueta({ children, color = "border-slate-700 bg-slate-800/70 text-slate-300" }) {
-  return <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${color}`}>{children}</span>;
+function Etiqueta({ children, color = "border-vw-borde bg-vw-claro text-vw" }) {
+  return (
+    <span className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-xs font-medium ${color}`}>
+      {children}
+    </span>
+  );
 }
 
 function Seccion({ titulo, elementos, icono: Icono }) {
   if (!elementos?.length) return null;
+
   return (
-    <section className="rounded-2xl border border-white/10 bg-slate-900/80 p-5 sm:p-6">
-      <h3 className="mb-4 flex items-center gap-2 text-base font-semibold text-white"><Icono size={18} className="text-cyan-400" />{titulo}</h3>
-      <ul className="space-y-3 text-sm leading-relaxed text-slate-300">
-        {elementos.map((texto, indice) => <li key={indice} className="flex gap-3"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-400" />{texto}</li>)}
+    <section className="min-w-0 rounded-2xl border border-vw-borde bg-white p-5 shadow-sm sm:p-6">
+      <h3 className="mb-4 flex items-center gap-2 text-base font-semibold text-vw">
+        <Icono size={18} className="shrink-0 text-vw-azul" />
+        {titulo}
+      </h3>
+      <ul className="space-y-3 text-sm leading-relaxed text-slate-600">
+        {elementos.map((texto, indice) => (
+          <li key={indice} className="flex min-w-0 gap-3">
+            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-vw-azul" />
+            <span className="min-w-0 break-words">{texto}</span>
+          </li>
+        ))}
       </ul>
     </section>
   );
 }
 
 function Resultado({ resultado }) {
+  const danos = resultado.danos || [];
+
   return (
     <div className="space-y-5" aria-live="polite">
-      <div className="rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/10 via-slate-900 to-slate-900 p-5 sm:p-7">
+      <section className="min-w-0 rounded-2xl border border-vw-borde bg-gradient-to-br from-vw-claro via-white to-white p-5 shadow-sm sm:p-7">
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <Etiqueta color={estilosEstado[resultado.estado_general] || estilosEstado["No concluyente"]}>{resultado.estado_general}</Etiqueta>
+          <Etiqueta color={estilosEstado[resultado.estado_general] || estilosEstado["No concluyente"]}>
+            {resultado.estado_general}
+          </Etiqueta>
           <Etiqueta>Atención: {resultado.nivel_atencion}</Etiqueta>
           <Etiqueta>{resultado.total_imagenes} imágenes analizadas</Etiqueta>
         </div>
-        <h2 className="mb-2 text-xl font-bold text-white">Resumen de la inspección</h2>
-        <p className="leading-relaxed text-slate-300">{resultado.resumen_general}</p>
-      </div>
+        <h2 className="mb-2 text-xl font-bold text-vw">Resumen de la inspección</h2>
+        <p className="break-words leading-relaxed text-slate-600">{resultado.resumen_general}</p>
+      </section>
 
-      <section className="rounded-2xl border border-white/10 bg-slate-900/80 p-5 sm:p-6">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h3 className="flex items-center gap-2 font-semibold text-white"><SearchCheck size={19} className="text-cyan-400" />Hallazgos visuales</h3>
-          <Etiqueta>{resultado.danos.length} hallazgo(s)</Etiqueta>
+      <section className="min-w-0 rounded-2xl border border-vw-borde bg-white p-5 shadow-sm sm:p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="flex items-center gap-2 font-semibold text-vw">
+            <SearchCheck size={19} className="shrink-0 text-vw-azul" />
+            Hallazgos visuales
+          </h3>
+          <Etiqueta>{danos.length} hallazgo(s)</Etiqueta>
         </div>
-        {resultado.danos.length === 0 ? (
-          <p className="rounded-xl bg-slate-800/50 p-4 text-sm text-slate-300">No se identificaron daños suficientemente claros en las imágenes proporcionadas. Esto no descarta daños en zonas no visibles.</p>
+        {danos.length === 0 ? (
+          <p className="rounded-xl bg-vw-claro p-4 text-sm leading-relaxed text-slate-600">
+            No se identificaron daños suficientemente claros en las imágenes proporcionadas.
+            Esto no descarta daños en zonas no visibles.
+          </p>
         ) : (
           <div className="space-y-3">
-            {resultado.danos.map((dano, indice) => (
-              <div key={indice} className="rounded-xl border border-slate-700/70 bg-slate-950/40 p-4">
+            {danos.map((dano, indice) => (
+              <div key={indice} className="min-w-0 rounded-xl border border-vw-borde bg-vw-claro/50 p-4">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <h4 className="font-semibold text-slate-100">{dano.pieza} · {dano.tipo}</h4>
-                  <Etiqueta color="border-amber-500/25 bg-amber-500/10 text-amber-200">{dano.severidad}</Etiqueta>
+                  <h4 className="min-w-0 break-words font-semibold text-vw">
+                    {dano.pieza} · {dano.tipo}
+                  </h4>
+                  <Etiqueta color="border-amber-200 bg-amber-50 text-amber-800">
+                    {dano.severidad}
+                  </Etiqueta>
                 </div>
-                <p className="text-sm leading-relaxed text-slate-300">{dano.descripcion}</p>
-                <p className="mt-2 text-xs text-slate-500">Evidencia: {dano.evidencia}</p>
+                <p className="break-words text-sm leading-relaxed text-slate-600">{dano.descripcion}</p>
+                <p className="mt-2 break-words text-xs text-slate-500">Evidencia: {dano.evidencia}</p>
               </div>
             ))}
           </div>
         )}
       </section>
-      <div className="grid gap-5 lg:grid-cols-2">
+
+      <div className="grid gap-5 md:grid-cols-2">
         <Seccion titulo="Recomendaciones" elementos={resultado.recomendaciones} icono={ClipboardCheck} />
         <Seccion titulo="Limitaciones del análisis" elementos={resultado.limitaciones} icono={CircleHelp} />
       </div>
       <Seccion titulo="Zonas no evaluadas" elementos={resultado.zonas_no_evaluadas} icono={ShieldAlert} />
-      <p className="text-xs leading-relaxed text-slate-500">Evaluación preliminar basada exclusivamente en imágenes. No sustituye una inspección física, peritaje ni diagnóstico de seguridad.</p>
+      <p className="text-xs leading-relaxed text-slate-500">
+        Evaluación preliminar basada exclusivamente en imágenes. No sustituye una inspección física,
+        peritaje ni diagnóstico de seguridad.
+      </p>
     </div>
   );
 }
@@ -87,6 +119,7 @@ export default function App() {
   const [resultado, setResultado] = useState(null);
   const selectorRef = useRef(null);
   const urlsRef = useRef(new Set());
+  const API_BASE = import.meta.env.VITE_API_BASE || "https://crm.grupoautomotrizryr.com";
 
   useEffect(() => () => {
     for (const url of urlsRef.current) URL.revokeObjectURL(url);
@@ -156,21 +189,40 @@ export default function App() {
     setError("");
   }
 
+
   async function analizar() {
     if (!archivos.length || procesando || analizando) return;
+
     setAnalizando(true);
     setResultado(null);
     setError("");
 
     try {
       const formulario = new FormData();
+
       for (const archivo of archivos) {
         formulario.append("imagenes", archivo.archivo);
         formulario.append("etiquetas", archivo.nombre);
       }
-      const respuesta = await fetch("/api/analizar", { method: "POST", body: formulario });
+
+      const respuesta = await fetch(
+        `${API_BASE}/inspector-ai/api/analizar/`,
+        {
+          method: "POST",
+          body: formulario,
+        },
+      );
+
       const datos = await respuesta.json().catch(() => ({}));
-      if (!respuesta.ok) throw new Error(datos.error || "No se pudo analizar el vehículo. Comprueba que el servidor esté ejecutándose.");
+
+      if (!respuesta.ok) {
+        throw new Error(
+          datos.error ||
+          datos.detail ||
+          "No se pudo analizar el vehículo. Comprueba que Django esté ejecutándose."
+        );
+      }
+
       setResultado(datos);
     } catch (e) {
       setError(e.message);
@@ -182,51 +234,123 @@ export default function App() {
   const bloqueado = procesando || analizando;
 
   return (
-    <div className="min-h-screen bg-[#080e19] text-slate-200">
-      <header className="border-b border-white/10 bg-slate-950/60">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl border border-cyan-400/30 bg-cyan-400/10 p-2.5 text-cyan-400"><Camera size={23} /></div>
-            <div><p className="text-base font-bold tracking-tight text-white">AutoInspect <span className="text-cyan-400">AI</span></p><p className="text-[11px] tracking-wide text-slate-500">INSPECCIÓN VISUAL EXTERIOR</p></div>
+    <div className="min-h-screen bg-white text-slate-700">
+      <header className="border-b border-vw-borde bg-white">
+        <div className="mx-auto flex max-w-[90%] flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="shrink-0 rounded-xl border border-vw-borde bg-vw-claro text-vw">
+              <img src="../vw_dark.png" alt="Logo VW" className="object-contain w-15 h-15 " />
+            </div>
+            <div className="min-w-0">
+              <p className="text-base font-bold tracking-tight text-vw sm:text-lg">
+                AutoInspect <span className="text-vw-azul">AI</span>
+              </p>
+              <p className="text-[10px] font-medium tracking-wide text-slate-500 sm:text-[11px]">
+                INSPECCIÓN VISUAL AUTOMOTRIZ
+              </p>
+            </div>
           </div>
-          <Etiqueta color="border-emerald-500/25 bg-emerald-500/5 text-emerald-300"><span className="mr-2 h-1.5 w-1.5 rounded-full bg-emerald-400" />Análisis asistido por IA</Etiqueta>
+          <Etiqueta color="border-vw-borde bg-vw-claro text-vw">
+            <span className="mr-2 h-1.5 w-1.5 shrink-0 rounded-full bg-vw-azul" />
+            <span className="sm:hidden">Análisis con IA</span>
+            <span className="hidden sm:inline">Análisis asistido por IA</span>
+          </Etiqueta>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-5 pb-16 pt-10 sm:px-8">
-        <div className="mb-9 max-w-3xl">
-          <h1 className="text-3xl font-bold tracking-tight text-white sm:text-5xl">Detecta posibles daños exteriores <span className="text-cyan-400">desde fotografías o videos.</span></h1>
+      <main className="mx-auto w-full max-w-[90%] px-4 pb-14 pt-8 sm:px-6 sm:pt-10 lg:px-8 lg:pb-16">
+        <div className="mb-7 max-w-4xl sm:mb-9">
+          <h1 className="text-[clamp(1.8rem,5vw,3rem)] font-bold leading-tight tracking-tight text-vw">
+            Detecta posibles daños exteriores{" "}
+            <span className="text-vw-azul">desde fotografías o videos.</span>
+          </h1>
         </div>
 
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-6">
-            <section className="rounded-2xl border border-white/10 bg-slate-900/65 p-5 sm:p-7">
-              <div className="mb-5 flex items-center justify-between gap-2"><h2 className="text-lg font-semibold text-white">01. Cargar evidencia visual</h2><Etiqueta>{archivos.length} / {MAX_IMAGENES}</Etiqueta></div>
-              <input ref={selectorRef} type="file" accept="image/jpeg,image/png,image/webp,video/*" multiple className="hidden" onChange={(e) => agregarArchivos(Array.from(e.target.files || []))} />
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="min-w-0 space-y-5 sm:space-y-6">
+            <section className="min-w-0 rounded-2xl border border-vw-borde bg-white p-4 shadow-sm sm:p-6 lg:p-7">
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-base font-semibold text-vw sm:text-lg">01. Cargar evidencia visual</h2>
+                <Etiqueta>{archivos.length} / {MAX_IMAGENES}</Etiqueta>
+              </div>
+
+              <input
+                ref={selectorRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,video/*"
+                multiple
+                className="hidden"
+                onChange={(e) => agregarArchivos(Array.from(e.target.files || []))}
+                aria-label="Seleccionar fotografías y videos"
+              />
+
               <div
                 onDragOver={(e) => { e.preventDefault(); if (!bloqueado) setArrastrando(true); }}
                 onDragLeave={(e) => { e.preventDefault(); setArrastrando(false); }}
-                onDrop={(e) => { e.preventDefault(); setArrastrando(false); if (!bloqueado) agregarArchivos(Array.from(e.dataTransfer.files)); }}
-                className={`rounded-2xl border-2 border-dashed p-9 text-center transition sm:p-12 ${arrastrando ? "border-cyan-400 bg-cyan-400/10" : "border-slate-700 bg-slate-950/45"}`}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setArrastrando(false);
+                  if (!bloqueado) agregarArchivos(Array.from(e.dataTransfer.files));
+                }}
+                className={`rounded-2xl border-2 border-dashed px-4 py-8 text-center transition-colors sm:px-8 sm:py-11 ${arrastrando ? "border-vw-azul bg-blue-100" : "border-[#b8cfe8] bg-vw-claro"
+                  }`}
               >
-                <div className="mx-auto mb-5 w-fit rounded-2xl bg-cyan-400/10 p-4 text-cyan-400"><UploadCloud size={33} /></div>
-                <p className="font-semibold text-white">Arrastra las imágenes o videos aquí</p>
-                <p className="mt-2 text-sm text-slate-500">JPG, PNG, WEBP, MP4 o videos compatibles con tu navegador</p>
-                <button disabled={bloqueado} onClick={() => selectorRef.current?.click()} className="mt-6 inline-flex items-center gap-2 rounded-xl bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:opacity-50"><ImagePlus size={17} /> Seleccionar archivos</button>
-                <p className="mt-4 text-xs text-slate-500">Máximo 12 imágenes/capturas · 8 MB por foto · 80 MB por video</p>
+                <div className="mx-auto mb-5 w-fit rounded-2xl bg-white p-4 text-vw-azul shadow-sm">
+                  <UploadCloud size={33} />
+                </div>
+                <p className="text-base font-semibold text-vw">Arrastra las imágenes o videos aquí</p>
+                <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-600">
+                  JPG, PNG, WEBP, MP4 o videos compatibles con tu navegador
+                </p>
+                <button
+                  type="button"
+                  disabled={bloqueado}
+                  onClick={() => selectorRef.current?.click()}
+                  className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-vw px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#003681] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vw-azul disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                >
+                  <ImagePlus size={17} /> Seleccionar archivos
+                </button>
+                <p className="mt-4 text-xs leading-relaxed text-slate-500">
+                  Máximo 12 imágenes/capturas · 8 MB por foto · 80 MB por video
+                </p>
               </div>
-              {procesando && <p className="mt-4 flex items-center gap-2 text-sm text-cyan-300"><LoaderCircle size={17} className="animate-spin" /> Extrayendo fotogramas del video...</p>}
+
+              {procesando && (
+                <p className="mt-4 flex items-center gap-2 text-sm text-vw-azul" role="status">
+                  <LoaderCircle size={17} className="animate-spin" /> Extrayendo fotogramas del video...
+                </p>
+              )}
 
               {archivos.length > 0 && (
                 <div className="mt-7">
-                  <div className="mb-4 flex items-center justify-between"><h3 className="text-sm font-semibold text-slate-200">Evidencia preparada para el análisis</h3><button disabled={bloqueado} className="text-xs text-slate-400 hover:text-rose-300 disabled:opacity-50" onClick={limpiar}>Eliminar todo</button></div>
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold text-vw">Evidencia preparada para el análisis</h3>
+                    <button
+                      type="button"
+                      disabled={bloqueado}
+                      onClick={limpiar}
+                      className="min-h-10 text-xs font-medium text-slate-600 hover:text-rose-700 disabled:opacity-50"
+                    >
+                      Eliminar todo
+                    </button>
+                  </div>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {archivos.map((archivo, indice) => (
-                      <div key={archivo.id} className="group relative overflow-hidden rounded-xl border border-slate-700 bg-slate-950">
+                      <div key={archivo.id} className="group relative min-w-0 overflow-hidden rounded-xl border border-vw-borde bg-white">
                         <img src={archivo.vista} alt={`Evidencia ${indice + 1}`} className="aspect-[4/3] w-full object-cover" />
-                        <div className="absolute left-2 top-2 rounded-lg bg-slate-950/85 px-2 py-1 text-[10px] font-medium text-white">#{indice + 1} · {archivo.origen === "Video" ? "Video" : "Foto"}</div>
-                        <button disabled={bloqueado} onClick={() => eliminarArchivo(archivo.id)} title="Eliminar imagen" className="absolute right-2 top-2 rounded-lg bg-slate-950/85 p-1.5 text-white hover:bg-rose-600 disabled:opacity-50"><X size={14} /></button>
-                        <p title={archivo.nombre} className="truncate px-3 py-2 text-xs text-slate-400">{archivo.nombre}</p>
+                        <div className="absolute left-2 top-2 max-w-[70%] truncate rounded-lg bg-vw/90 px-2 py-1 text-[10px] font-medium text-white">
+                          #{indice + 1} · {archivo.origen === "Video" ? "Video" : "Foto"}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={bloqueado}
+                          onClick={() => eliminarArchivo(archivo.id)}
+                          aria-label={`Eliminar evidencia ${indice + 1}`}
+                          className="absolute right-1 top-1 flex h-9 w-9 items-center justify-center rounded-lg bg-vw/90 text-white transition-colors hover:bg-rose-600 disabled:opacity-50 sm:right-2 sm:top-2"
+                        >
+                          <X size={16} />
+                        </button>
+                        <p title={archivo.nombre} className="truncate px-3 py-2 text-xs text-slate-600">{archivo.nombre}</p>
                       </div>
                     ))}
                   </div>
@@ -234,22 +358,62 @@ export default function App() {
               )}
             </section>
 
-            <section className="rounded-2xl border border-white/10 bg-slate-900/65 p-5 sm:p-7">
-              <div className="mb-4 flex items-center justify-between gap-3"><h2 className="text-lg font-semibold text-white">02. Ejecutar inspección</h2><SearchCheck size={22} className="text-cyan-400" /></div>
-              <p className="mb-5 text-sm leading-relaxed text-slate-400">Las fotografías seleccionadas y los fotogramas de los videos se analizarán juntos para generar un reporte visual estructurado.</p>
-              <button disabled={bloqueado || archivos.length === 0} onClick={analizar} className="flex w-full items-center justify-center gap-3 rounded-xl bg-cyan-400 px-5 py-3.5 font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:bg-slate-700 disabled:text-slate-400">
-                {analizando ? <><LoaderCircle size={19} className="animate-spin" /> Analizando evidencia...</> : <><Sparkles size={19} /> Analizar vehículo <ArrowRight size={19} /></>}
+            <section className="min-w-0 rounded-2xl border border-vw-borde bg-white p-4 shadow-sm sm:p-6 lg:p-7">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <h2 className="text-base font-semibold text-vw sm:text-lg">02. Ejecutar inspección</h2>
+                <SearchCheck size={22} className="shrink-0 text-vw-azul" />
+              </div>
+              <p className="mb-5 text-sm leading-relaxed text-slate-600">
+                Las fotografías seleccionadas y los fotogramas de los videos se analizarán juntos para generar un reporte visual estructurado.
+              </p>
+              <button
+                type="button"
+                disabled={bloqueado || archivos.length === 0}
+                onClick={analizar}
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-vw px-4 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[#003681] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vw-azul disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 sm:gap-3 sm:px-5 sm:text-base"
+              >
+                {analizando ? (
+                  <><LoaderCircle size={19} className="shrink-0 animate-spin" /> Analizando evidencia...</>
+                ) : (
+                  <><Sparkles size={19} className="shrink-0" /> Analizar vehículo <ArrowRight size={19} className="shrink-0" /></>
+                )}
               </button>
-              {error && <div role="alert" className="mt-4 flex gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200"><AlertCircle size={18} className="shrink-0" />{error}</div>}
+              {error && (
+                <div role="alert" className="mt-4 flex min-w-0 gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+                  <AlertCircle size={18} className="shrink-0" />
+                  <p className="min-w-0 break-words">{error}</p>
+                </div>
+              )}
             </section>
           </div>
 
-          <aside className="space-y-5">
-            <section className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5"><h3 className="flex items-center gap-2 text-sm font-semibold text-amber-200"><ShieldAlert size={17} />Importante</h3><p className="mt-2 text-xs leading-6 text-slate-400">La IA puede omitir daños o interpretar reflejos como defectos. Valida siempre los hallazgos con una revisión física.</p></section>
+          <aside className="min-w-0 space-y-5">
+            <section className="rounded-2xl border border-[#cfe1f5] bg-vw-claro p-5">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-vw">
+                <ShieldAlert size={17} className="shrink-0 text-vw-azul" /> Importante
+              </h3>
+              <p className="mt-2 text-xs leading-6 text-slate-600">
+                La IA puede omitir daños o interpretar reflejos como defectos. Valida siempre los hallazgos con una revisión física.
+              </p>
+            </section>
           </aside>
         </div>
 
-        {resultado && <section className="mt-9" id="resultado"><div className="mb-5 flex items-center justify-between gap-3"><h2 className="text-2xl font-bold text-white">03. Resultado del análisis</h2><button onClick={() => { setResultado(null); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="flex items-center gap-2 text-xs text-cyan-300 hover:text-cyan-200"><RotateCcw size={15} /> Volver a analizar</button></div><Resultado resultado={resultado} /></section>}
+        {resultado && (
+          <section className="mt-9 scroll-mt-6" id="resultado">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-xl font-bold text-vw sm:text-2xl">03. Resultado del análisis</h2>
+              <button
+                type="button"
+                onClick={() => { setResultado(null); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                className="inline-flex min-h-10 items-center gap-2 text-xs font-semibold text-vw-azul hover:text-vw"
+              >
+                <RotateCcw size={15} /> Volver a analizar
+              </button>
+            </div>
+            <Resultado resultado={resultado} />
+          </section>
+        )}
       </main>
     </div>
   );
