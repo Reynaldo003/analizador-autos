@@ -560,9 +560,6 @@ export default function App() {
                   {errorCamara}
                 </p>
               )}
-              <p className="mt-3 text-center text-xs text-slate-500">
-                En móvil se solicita preferentemente la cámara trasera. Puedes tomar varias fotos seguidas.
-              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 border-t border-vw-borde p-3 sm:p-5">
