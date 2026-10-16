@@ -114,13 +114,110 @@ export default function App() {
   const [error, setError] = useState("");
   const [resultado, setResultado] = useState(null);
   const selectorRef = useRef(null);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
   const urlsRef = useRef(new Set());
-  const API_BASE = import.meta.env.VITE_API_BASE || "https://crm.grupoautomotrizryr.com";
+  const [camaraAbierta, setCamaraAbierta] = useState(false);
+  const [camaraLista, setCamaraLista] = useState(false);
+  const [capturando, setCapturando] = useState(false);
+  const [errorCamara, setErrorCamara] = useState("");
+  const API_BASE = (import.meta.env.VITE_API_BASE || "https://crm.grupoautomotrizryr.com").replace(/\/$/, "");
 
   useEffect(() => () => {
     for (const url of urlsRef.current) URL.revokeObjectURL(url);
     urlsRef.current.clear();
   }, []);
+
+  useEffect(() => {
+    if (!camaraAbierta) return;
+
+    let activo = true;
+
+    async function iniciarCamara() {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error("Tu navegador no permite abrir la cámara. Usa HTTPS o localhost.");
+        }
+
+        const flujo = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { facingMode: { ideal: "environment" } },
+        });
+
+        if (!activo) {
+          flujo.getTracks().forEach((pista) => pista.stop());
+          return;
+        }
+
+        streamRef.current = flujo;
+        if (videoRef.current) {
+          videoRef.current.srcObject = flujo;
+          await videoRef.current.play();
+        }
+        if (activo) setCamaraLista(true);
+      } catch (e) {
+        if (activo) {
+          setErrorCamara(
+            e.name === "NotAllowedError"
+              ? "Permite el acceso a la cámara en tu navegador para tomar fotografías."
+              : "No se pudo abrir la cámara. Comprueba sus permisos o utiliza Seleccionar archivos."
+          );
+        }
+      }
+    }
+
+    iniciarCamara();
+
+    return () => {
+      activo = false;
+      streamRef.current?.getTracks().forEach((pista) => pista.stop());
+      streamRef.current = null;
+      if (videoRef.current) videoRef.current.srcObject = null;
+    };
+  }, [camaraAbierta]);
+
+  function abrirCamara() {
+    if (procesando || analizando || archivos.length >= MAX_IMAGENES) return;
+    setErrorCamara("");
+    setCamaraLista(false);
+    setCamaraAbierta(true);
+  }
+
+  function cerrarCamara() {
+    setCamaraAbierta(false);
+    setCamaraLista(false);
+    setErrorCamara("");
+  }
+
+  async function tomarFoto() {
+    const video = videoRef.current;
+    if (!camaraLista || !video?.videoWidth || capturando || procesando || archivos.length >= MAX_IMAGENES) return;
+
+    setCapturando(true);
+    setErrorCamara("");
+
+    try {
+      const escala = Math.min(1, 2000 / Math.max(video.videoWidth, video.videoHeight));
+      const lienzo = document.createElement("canvas");
+      lienzo.width = Math.round(video.videoWidth * escala);
+      lienzo.height = Math.round(video.videoHeight * escala);
+      const contexto = lienzo.getContext("2d");
+      if (!contexto) throw new Error("No se pudo preparar la fotografía.");
+      contexto.drawImage(video, 0, 0, lienzo.width, lienzo.height);
+
+      const imagen = await new Promise((resolver) => {
+        lienzo.toBlob(resolver, "image/jpeg", 0.9);
+      });
+      if (!imagen) throw new Error("No se pudo capturar la fotografía.");
+
+      const archivo = new File([imagen], `foto-auto-${Date.now()}.jpg`, { type: "image/jpeg" });
+      await agregarArchivos([archivo]);
+    } catch (e) {
+      setErrorCamara(e.message);
+    } finally {
+      setCapturando(false);
+    }
+  }
 
   function generarVista(archivo) {
     const url = URL.createObjectURL(archivo);
@@ -235,7 +332,7 @@ export default function App() {
         <div className="mx-auto flex max-w-[90%] flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <div className="shrink-0 rounded-xl border border-vw-borde bg-vw-claro text-vw">
-              <img src="../vw_dark.png" alt="Logo VW" className="object-contain w-15 h-15 " />
+              <img src="/vw_dark.png" alt="Logo VW" className="object-contain w-15 h-15 " />
             </div>
             <div className="min-w-0">
               <p className="text-base font-bold tracking-tight text-vw sm:text-lg">
@@ -298,14 +395,24 @@ export default function App() {
                 <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-600">
                   JPG, PNG, WEBP, MP4 o videos compatibles con tu navegador
                 </p>
-                <button
-                  type="button"
-                  disabled={bloqueado}
-                  onClick={() => selectorRef.current?.click()}
-                  className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-vw px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#003681] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vw-azul disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-                >
-                  <ImagePlus size={17} /> Seleccionar archivos
-                </button>
+                <div className="mx-auto mt-6 grid w-full max-w-md grid-cols-1 gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    disabled={bloqueado || archivos.length >= MAX_IMAGENES}
+                    onClick={abrirCamara}
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-vw px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#003681] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Camera size={19} /> Tomar foto
+                  </button>
+                  <button
+                    type="button"
+                    disabled={bloqueado || archivos.length >= MAX_IMAGENES}
+                    onClick={() => selectorRef.current?.click()}
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-vw bg-white px-5 py-3 text-sm font-semibold text-vw transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <ImagePlus size={19} /> Seleccionar archivos
+                  </button>
+                </div>
                 <p className="mt-4 text-xs leading-relaxed text-slate-500">
                   Máximo 12 imágenes/capturas · 8 MB por foto · 80 MB por video
                 </p>
@@ -411,6 +518,74 @@ export default function App() {
           </section>
         )}
       </main>
+
+      {camaraAbierta && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#001e50]/85 p-3 sm:p-6">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="Tomar fotografía del vehículo"
+            className="flex max-h-[96dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-vw-borde px-4 py-3 sm:px-6">
+              <div>
+                <h2 className="font-semibold text-vw">Cámara del vehículo</h2>
+                <p className="text-xs text-slate-500">Fotografías: {archivos.length} / {MAX_IMAGENES}</p>
+              </div>
+              <button
+                type="button"
+                onClick={cerrarCamara}
+                aria-label="Cerrar cámara"
+                className="flex h-11 w-11 items-center justify-center rounded-xl text-vw hover:bg-vw-claro"
+              >
+                <X size={22} />
+              </button>
+            </div>
+
+            <div className="min-h-0 overflow-y-auto p-3 sm:p-5">
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                playsInline
+                className="h-[48dvh] max-h-[520px] w-full rounded-xl bg-slate-950 object-contain sm:h-[58dvh]"
+              />
+              {!camaraLista && !errorCamara && (
+                <p className="mt-3 flex items-center justify-center gap-2 text-sm text-vw">
+                  <LoaderCircle size={18} className="animate-spin" /> Abriendo cámara...
+                </p>
+              )}
+              {errorCamara && (
+                <p role="alert" className="mt-3 rounded-xl bg-rose-50 p-3 text-sm text-rose-800">
+                  {errorCamara}
+                </p>
+              )}
+              <p className="mt-3 text-center text-xs text-slate-500">
+                En móvil se solicita preferentemente la cámara trasera. Puedes tomar varias fotos seguidas.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 border-t border-vw-borde p-3 sm:p-5">
+              <button
+                type="button"
+                onClick={cerrarCamara}
+                className="min-h-12 rounded-xl border border-vw-borde bg-white px-4 text-sm font-semibold text-vw hover:bg-vw-claro"
+              >
+                Finalizar
+              </button>
+              <button
+                type="button"
+                disabled={!camaraLista || capturando || bloqueado || archivos.length >= MAX_IMAGENES}
+                onClick={tomarFoto}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-vw px-4 text-sm font-semibold text-white hover:bg-[#003681] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {capturando ? <LoaderCircle size={18} className="animate-spin" /> : <Camera size={18} />}
+                {capturando ? "Guardando..." : "Capturar foto"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
