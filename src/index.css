@@ -5,12 +5,16 @@
   --color-vw-azul: #0072ce;
   --color-vw-claro: #f3f8fe;
   --color-vw-borde: #dbe6f2;
+  --color-vw-btn: #0b3d91;
+  --color-vw-btn-alt: #08306f;
+  --color-vw-navy: #0a2a63;
+  --color-vw-pagina: #f2f6fb;
 }
 
 :root {
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   color: #001e50;
-  background: #ffffff;
+  background: #f2f6fb;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
