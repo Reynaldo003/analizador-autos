@@ -1,3 +1,4 @@
+//src/lib/severidad.js
 const TONOS = {
   grave: {
     peso: 0,
@@ -38,9 +39,12 @@ const TONOS = {
 };
 
 export function tonoSeveridad(severidad) {
-  const texto = String(severidad ?? "").toLowerCase().trim();
+  const texto = String(severidad ?? "")
+    .toLowerCase()
+    .trim();
   if (!texto) return "neutro";
-  if (/(graves?|cr[ií]tic|sever|alt[ao]s?|alto|alta)/.test(texto)) return "grave";
+  if (/(graves?|cr[ií]tic|sever|alt[ao]s?|alto|alta)/.test(texto))
+    return "grave";
   if (/(moderad|media|medio)/.test(texto)) return "moderado";
   if (/(leve|baja|bajo|observ|info)/.test(texto)) return "leve";
   return "neutro";

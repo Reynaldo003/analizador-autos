@@ -1,3 +1,4 @@
+//src/lib/reporte.js
 const escapar = (valor) =>
   String(valor ?? "").replace(
     /[&<>"]/g,

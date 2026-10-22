@@ -1,3 +1,4 @@
+//src/components/CargaEvidencia.jsx
 import { useEffect, useState } from "react";
 import {
   Camera,
@@ -114,7 +115,7 @@ export default function CargaEvidencia({
             aria-hidden="true"
           />
         )}
-  
+
         <div className="px-5 pt-5 sm:px-6">
           <div className="h-1.5 overflow-hidden rounded-full bg-vw-claro">
             <div
@@ -123,7 +124,7 @@ export default function CargaEvidencia({
             />
           </div>
         </div>
-  
+
         <div className="px-5 pb-5 pt-4 sm:px-6 sm:pb-6 sm:pt-5">
           <div className="overflow-hidden rounded-2xl border border-vw-borde bg-[#f7fafc]">
             <div
@@ -137,24 +138,23 @@ export default function CargaEvidencia({
                   <p className="text-[13px] font-semibold leading-tight sm:text-sm">
                     Carga de evidencia
                   </p>
-                <p className="mt-0.5 truncate text-[11px] leading-tight text-white/70">
-                  {cita
-                    ? `Evidencias de ${cita.folio}${cita.unidad ? ` · ${cita.unidad}` : ""}`
-                    : "Arrastra o selecciona fotos y videos del vehículo."}
-                </p>
+                  <p className="mt-0.5 truncate text-[11px] leading-tight text-white/70">
+                    {cita
+                      ? `Evidencias de ${cita.folio}${cita.unidad ? ` · ${cita.unidad}` : ""}`
+                      : "Arrastra o selecciona fotos y videos del vehículo."}
+                  </p>
                 </div>
               </div>
-  
+
               <div className="flex items-center gap-2">
                 <span
-                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                    lleno ? "bg-amber-300 text-amber-950" : "bg-white/15 text-white"
-                  }`}
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${lleno ? "bg-amber-300 text-amber-950" : "bg-white/15 text-white"
+                    }`}
                 >
                   <ImagePlus size={12} />
                   {archivos.length} / {maxImagenes}
                 </span>
-  
+
                 <div className="relative">
                   <button
                     type="button"
@@ -190,7 +190,7 @@ export default function CargaEvidencia({
                     </div>
                   )}
                 </div>
-  
+
                 <button
                   type="button"
                   disabled={bloqueado || vacio}
@@ -204,7 +204,7 @@ export default function CargaEvidencia({
                 </button>
               </div>
             </div>
-  
+
             <div className="p-4 sm:p-5">
               {vacio ? (
                 <div
@@ -218,7 +218,7 @@ export default function CargaEvidencia({
                     Arrastra tus fotos o videos aquí
                   </p>
                   <p className="mt-1 text-xs text-slate-500">o selecciónalos desde tu dispositivo</p>
-  
+
                   <div className="mt-4 flex w-full max-w-sm flex-col justify-center gap-2.5 sm:flex-row">
                     <button
                       type="button"
@@ -237,9 +237,9 @@ export default function CargaEvidencia({
                       <Camera size={16} /> Tomar foto
                     </button>
                   </div>
-  
+
                   <p className="mt-3.5 text-[11px] leading-relaxed text-slate-400">
-                    JPG · PNG · WEBP · MP4 — 8 MB por foto · 80 MB por video
+                    JPG · PNG · WEBP · MP4 — 10 MB por foto · 80 MB por video
                   </p>
                 </div>
               ) : (
@@ -249,11 +249,10 @@ export default function CargaEvidencia({
                     className={`flex flex-wrap items-center gap-x-3 gap-y-2.5 rounded-xl px-3.5 py-2.5 ${claseZona}`}
                   >
                     <span
-                      className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white ${
-                        arrastrando
-                          ? "bg-vw-azul"
-                          : "bg-gradient-to-br from-vw-azul to-[#0b3d91] shadow-sm"
-                      }`}
+                      className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white ${arrastrando
+                        ? "bg-vw-azul"
+                        : "bg-gradient-to-br from-vw-azul to-[#0b3d91] shadow-sm"
+                        }`}
                     >
                       <UploadCloud size={17} />
                     </span>
@@ -265,7 +264,7 @@ export default function CargaEvidencia({
                         JPG · PNG · WEBP · MP4
                       </p>
                     </div>
-  
+
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -285,7 +284,7 @@ export default function CargaEvidencia({
                       </button>
                     </div>
                   </div>
-  
+
                   <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
                     {visibles.map((archivo) => {
                       const desdeVideo = archivo.origen === "Video";
@@ -295,7 +294,7 @@ export default function CargaEvidencia({
                       ]
                         .filter(Boolean)
                         .join(" · ");
-  
+
                       return (
                         <figure
                           key={archivo.id}
@@ -307,7 +306,7 @@ export default function CargaEvidencia({
                               alt={archivo.nombre}
                               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                             />
-  
+
                             <button
                               type="button"
                               disabled={bloqueado}
@@ -318,7 +317,7 @@ export default function CargaEvidencia({
                             >
                               <X size={15} strokeWidth={3} />
                             </button>
-  
+
                             <button
                               type="button"
                               onClick={() => setPrevio(archivo)}
@@ -328,7 +327,7 @@ export default function CargaEvidencia({
                             >
                               <Eye size={15} />
                             </button>
-  
+
                             <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-vw/95 via-vw/75 to-transparent px-2.5 pb-2.5 pt-8">
                               <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/15 text-white">
                                 {desdeVideo ? <Film size={14} /> : <FileImage size={14} />}
@@ -348,16 +347,15 @@ export default function CargaEvidencia({
                         </figure>
                       );
                     })}
-  
+
                     <button
                       type="button"
                       disabled={bloqueado || lleno}
                       onClick={() => inputRef.current?.click()}
-                      className={`flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-3 transition-colors disabled:opacity-50 ${
-                        lleno
-                          ? "border-[#e2e8f0] bg-slate-50 text-slate-400"
-                          : "border-[#c3d6ee] bg-white text-slate-500 hover:border-vw-azul hover:text-vw-azul"
-                      }`}
+                      className={`flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-3 transition-colors disabled:opacity-50 ${lleno
+                        ? "border-[#e2e8f0] bg-slate-50 text-slate-400"
+                        : "border-[#c3d6ee] bg-white text-slate-500 hover:border-vw-azul hover:text-vw-azul"
+                        }`}
                     >
                       <span className="grid h-10 w-10 place-items-center rounded-xl bg-vw-claro text-vw-azul">
                         <Plus size={20} />
@@ -370,7 +368,7 @@ export default function CargaEvidencia({
             </div>
           </div>
         </div>
-  
+
         {procesando && (
           <div
             role="status"

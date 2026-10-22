@@ -1,3 +1,4 @@
+//src/components/CamaraModal.jsx
 import { Camera, LoaderCircle, X } from "lucide-react";
 
 export default function CamaraModal({

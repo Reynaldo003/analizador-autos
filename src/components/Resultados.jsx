@@ -1,3 +1,4 @@
+//src/components/Resultados.jsx
 import { useState } from "react";
 import {
   AlertCircle,

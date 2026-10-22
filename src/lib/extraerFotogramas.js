@@ -1,3 +1,4 @@
+//src/lib/extraerFotogramas.js
 function esperarEvento(elemento, evento, tiempoMaximo = 20000) {
   return new Promise((resolve, reject) => {
     const limpiar = () => {
