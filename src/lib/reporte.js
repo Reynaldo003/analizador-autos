@@ -14,6 +14,7 @@ const lista = (titulo, elementos) =>
 
 export function construirReporte({ resultado, fecha }) {
   const danos = resultado.danos || [];
+  const objetosAjenos = resultado.objetos_ajenos || [];
   const meta = [
     ["Unidad", resultado.unidad],
     ["VIN", resultado.vin],
@@ -21,6 +22,8 @@ export function construirReporte({ resultado, fecha }) {
     ["Estado general", resultado.estado_general],
     ["Nivel de atención", resultado.nivel_atencion],
     ["Imágenes analizadas", resultado.total_imagenes],
+    ["Daños detectados", danos.length],
+    ["Objetos ajenos", objetosAjenos.length],
   ]
     .filter(([, valor]) => String(valor ?? "").trim() !== "")
     .map(
@@ -43,6 +46,20 @@ export function construirReporte({ resultado, fecha }) {
         .join("")}`
     : "<p>No se identificaron daños suficientemente claros en las imágenes proporcionadas.</p>";
 
+  const objetosHtml = objetosAjenos.length
+    ? `<h2>Objetos ajenos detectados (${objetosAjenos.length})</h2>${objetosAjenos
+        .map(
+          (objeto, indice) => `<article class="dano">
+        <header><span class="num naranja">${indice + 1}</span>
+        <strong>${escapar(objeto.objeto)}</strong></header>
+        <p>${escapar(objeto.descripcion)}</p>
+        ${objeto.ubicacion ? `<small>Ubicación: ${escapar(objeto.ubicacion)}</small>` : ""}
+        ${objeto.evidencia ? `<small>Evidencia: ${escapar(objeto.evidencia)}</small>` : ""}
+      </article>`,
+        )
+        .join("")}`
+    : "";
+
   return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8" />
 <title>Reporte de inspección${resultado.unidad ? ` · ${escapar(resultado.unidad)}` : ""}</title>
@@ -59,6 +76,7 @@ export function construirReporte({ resultado, fecha }) {
   .dano{border:1px solid #dbe6f2;border-radius:12px;padding:12px 14px;margin-bottom:10px;background:#f8fafc}
   .dano header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
   .num{background:#0b3d91;color:#fff;border-radius:999px;width:20px;height:20px;display:grid;place-items:center;font-size:11px}
+  .num.naranja{background:#c2410c}
   .sev{margin-left:auto;font-size:11px;border:1px solid #dbe6f2;border-radius:999px;padding:2px 8px;background:#fff}
   small{color:#64748b}
   .pie{margin-top:28px;font-size:11px;color:#94a3b8;border-top:1px solid #eef3f9;padding-top:12px}
@@ -70,6 +88,7 @@ export function construirReporte({ resultado, fecha }) {
   <h2>Resumen general</h2>
   <p>${escapar(resultado.resumen_general)}</p>
   ${hallazgos}
+  ${objetosHtml}
   ${lista("Recomendaciones", resultado.recomendaciones)}
   ${lista("Limitaciones del análisis", resultado.limitaciones)}
   ${lista("Zonas no evaluadas", resultado.zonas_no_evaluadas)}

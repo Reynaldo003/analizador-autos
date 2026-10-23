@@ -34,3 +34,63 @@ button:disabled {
   background: #001e50;
   color: #ffffff;
 }
+
+@keyframes cargando-ia-anillo {
+  0% {
+    transform: scale(0.75);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+
+.cargando-ia-anillo {
+  animation: cargando-ia-anillo 1.8s ease-out infinite;
+}
+
+.cargando-ia-anillo-lento {
+  animation-duration: 2.6s;
+  animation-delay: 0.4s;
+}
+
+@keyframes cargando-ia-texto {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cargando-ia-texto {
+  animation: cargando-ia-texto 0.4s ease-out;
+}
+
+@keyframes cargando-ia-barra {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(410%);
+  }
+}
+
+.cargando-ia-barra {
+  animation: cargando-ia-barra 1.6s ease-in-out infinite;
+}
+
+.cargando-ia-gif {
+  image-rendering: pixelated;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cargando-ia-anillo,
+  .cargando-ia-texto,
+  .cargando-ia-barra {
+    animation: none;
+  }
+}

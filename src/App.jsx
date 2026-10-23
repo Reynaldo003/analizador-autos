@@ -1,11 +1,14 @@
 //src/App.jsx
 import { useEffect, useRef, useState } from "react";
+import { Play } from "lucide-react";
 import Topbar from "./components/Topbar.jsx";
 import Hero from "./components/Hero.jsx";
 import SelectorCita from "./components/SelectorCita.jsx";
 import CargaEvidencia from "./components/CargaEvidencia.jsx";
 import PanelAnalisis from "./components/PanelAnalisis.jsx";
+import Resultados from "./components/Resultados.jsx";
 import CamaraModal from "./components/CamaraModal.jsx";
+import Visor from "./components/Visor.jsx";
 import { extraerFotogramas } from "./lib/extraerFotogramas.js";
 import { API_BASE } from "./lib/api.js";
 
@@ -42,21 +45,31 @@ async function peticionCRM(ruta, opciones = {}) {
   const { publico = false, headers = {}, ...configuracion } = opciones;
   const token = publico ? "" : obtenerTokenCRM();
 
-  const respuesta = await fetch(`${API_BASE}${ruta}`, {
-    ...configuracion,
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...headers,
-    },
-  });
+  async function enviar(conToken) {
+    const respuesta = await fetch(`${API_BASE}${ruta}`, {
+      ...configuracion,
+      headers: {
+        ...(conToken ? { Authorization: `Bearer ${conToken}` } : {}),
+        ...headers,
+      },
+    });
 
-  const datos = await respuesta.json().catch(() => null);
+    const datos = await respuesta.json().catch(() => null);
+    return { respuesta, datos };
+  }
+
+  let { respuesta, datos } = await enviar(token);
+
+  if (token && (respuesta.status === 401 || respuesta.status === 403)) {
+    ({ respuesta, datos } = await enviar(""));
+  }
 
   if (!respuesta.ok) {
     throw new Error(
       datos?.detail ||
-      datos?.error ||
-      `El servidor respondió HTTP ${respuesta.status}.`
+        datos?.error ||
+        (Array.isArray(datos?.non_field_errors) ? datos.non_field_errors.join(" ") : "") ||
+        `El servidor respondió HTTP ${respuesta.status}.`
     );
   }
 
@@ -76,7 +89,6 @@ export default function App() {
   const [arrastrando, setArrastrando] = useState(false);
   const [error, setError] = useState("");
   const [resultado, setResultado] = useState(null);
-  const [fechaAnalisis, setFechaAnalisis] = useState(null);
   const [camaraAbierta, setCamaraAbierta] = useState(false);
   const [camaraLista, setCamaraLista] = useState(false);
   const [capturando, setCapturando] = useState(false);
@@ -86,6 +98,7 @@ export default function App() {
   const [analisisGuardados, setAnalisisGuardados] = useState([]);
   const [cargandoCita, setCargandoCita] = useState(false);
   const [progresoIA, setProgresoIA] = useState("");
+  const [visor, setVisor] = useState(null);
   const selectorRef = useRef(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -330,7 +343,7 @@ export default function App() {
   }
 
 
-  async function analizar() {
+  async function analizar(forzar = false) {
     if (!cita?.id || procesando || analizando || cargandoCita) return;
 
     const analizadas = new Set(
@@ -340,7 +353,7 @@ export default function App() {
     const anterioresPendientes = evidenciasGuardadas.filter(
       (evidencia) =>
         esFotografia(evidencia) &&
-        !analizadas.has(String(evidencia.id))
+        (forzar || !analizadas.has(String(evidencia.id)))
     );
 
     if (archivos.length === 0 && anterioresPendientes.length === 0) {
@@ -407,7 +420,7 @@ export default function App() {
             publico: true,
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ evidencia_id: evidencia.id }),
+            body: JSON.stringify({ evidencia_id: evidencia.id, forzar }),
           }
         );
 
@@ -420,7 +433,6 @@ export default function App() {
         ]);
       }
 
-      setFechaAnalisis(new Date());
       setResultado({ completado: true });
     } catch (error) {
       console.error("Error en Inspector IA:", error);
@@ -446,6 +458,18 @@ export default function App() {
 
   const totalPorAnalizar = archivos.length + evidenciasPendientes.length;
 
+  function abrirEvidencia(evidencia) {
+    const esVideo =
+      evidencia.tipo_mime?.startsWith("video/") ||
+      /\.(mp4|mov|webm|m4v)$/i.test(evidencia.nombre_original || "");
+
+    setVisor({
+      src: evidencia.url,
+      tipo: esVideo ? "video" : "imagen",
+      nombre: evidencia.nombre_original || "Evidencia",
+    });
+  }
+
   return (
     <div className="min-h-screen bg-vw-pagina text-slate-700">
       <div className="min-w-0">
@@ -454,10 +478,11 @@ export default function App() {
         <main>
           <Hero />
           <div className="mx-auto w-full max-w-[1700px] px-3 pb-7 pt-4 sm:px-5 lg:px-7">
-            <div className="space-y-5">
-              <div className="min-w-0 space-y-5">
+            <div className="space-y-4">
+              <div className="min-w-0 space-y-4">
                 <SelectorCita cita={cita} bloqueado={bloqueado || cargandoCita} onSeleccion={seleccionarCita} />
-                <CargaEvidencia
+                <div id="carga" className="min-w-0 scroll-mt-24">
+                  <CargaEvidencia
                   archivos={archivos}
                   maxImagenes={MAX_IMAGENES}
                   arrastrando={arrastrando}
@@ -470,12 +495,15 @@ export default function App() {
                   onCamara={abrirCamara}
                   onEliminar={eliminarArchivo}
                   onLimpiar={limpiar}
-                />
+                  />
+                </div>
 
                 <PanelAnalisis
                   bloqueado={bloqueado || cargandoCita || !cita}
                   analizando={analizando}
                   total={totalPorAnalizar}
+                  maxImagenes={MAX_IMAGENES}
+                  analizados={analisisGuardados.length}
                   error={error}
                   cita={cita}
                   onAnalizar={analizar}
@@ -483,8 +511,8 @@ export default function App() {
                 />
 
                 {cita && (
-                  <section className="rounded-2xl border border-vw-borde bg-white p-5 sm:p-6">
-                    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <section className="rounded-2xl border border-vw-borde bg-white p-4 sm:p-5">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <h3 className="text-[14px] font-bold text-vw">
                           Evidencias guardadas de la cita
@@ -507,7 +535,7 @@ export default function App() {
                         Esta cita todavía no tiene evidencias guardadas.
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+                      <div className="grid grid-cols-3 gap-2 min-[420px]:grid-cols-4 md:grid-cols-6 xl:grid-cols-8">
                         {evidenciasGuardadas.map((evidencia) => {
                           const esImagen = esFotografia(evidencia);
                           const esVideo =
@@ -518,30 +546,37 @@ export default function App() {
                           return (
                             <div
                               key={evidencia.id}
-                              className="overflow-hidden rounded-xl border border-vw-borde bg-white"
+                              className="overflow-hidden rounded-lg border border-vw-borde bg-white"
                             >
-                              <div className="flex aspect-[4/3] items-center justify-center bg-slate-100">
-                                {esImagen ? (
-                                  <a
-                                    href={evidencia.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                              <div className="flex aspect-square items-center justify-center bg-slate-100">
+                                {esImagen || esVideo ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => abrirEvidencia(evidencia)}
+                                    aria-label={`Ver ${evidencia.nombre_original || "evidencia"}`}
                                     className="h-full w-full"
                                   >
-                                    <img
-                                      src={evidencia.url}
-                                      alt={evidencia.nombre_original || "Fotografía"}
-                                      className="h-full w-full object-cover"
-                                      loading="lazy"
-                                    />
-                                  </a>
-                                ) : esVideo ? (
-                                  <video
-                                    src={evidencia.url}
-                                    controls
-                                    preload="metadata"
-                                    className="h-full w-full object-contain"
-                                  />
+                                    {esImagen ? (
+                                      <img
+                                        src={evidencia.url}
+                                        alt={evidencia.nombre_original || "Fotografía"}
+                                        className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+                                        loading="lazy"
+                                      />
+                                    ) : (
+                                      <span className="relative flex h-full w-full items-center justify-center bg-slate-900">
+                                        <video
+                                          src={evidencia.url}
+                                          preload="metadata"
+                                          muted
+                                          className="h-full w-full object-contain opacity-80"
+                                        />
+                                        <span className="absolute grid h-11 w-11 place-items-center rounded-full bg-vw-btn/85 text-white shadow-lg">
+                                          <Play size={18} fill="currentColor" />
+                                        </span>
+                                      </span>
+                                    )}
+                                  </button>
                                 ) : (
                                   <a
                                     href={evidencia.url}
@@ -554,26 +589,31 @@ export default function App() {
                                 )}
                               </div>
 
-                              <div className="space-y-2 p-3">
+                              <div className="flex items-center gap-1.5 px-2 py-1.5">
+                                <span
+                                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                                    !esImagen
+                                      ? "bg-slate-300"
+                                      : procesada
+                                        ? "bg-emerald-500"
+                                        : "bg-amber-500"
+                                  }`}
+                                  title={
+                                    !esImagen
+                                      ? esVideo
+                                        ? "Video"
+                                        : "Documento"
+                                      : procesada
+                                        ? "Analizada"
+                                        : "Pendiente de IA"
+                                  }
+                                />
                                 <p
-                                  className="truncate text-[11px] font-semibold text-vw"
+                                  className="min-w-0 truncate text-[10px] font-medium text-slate-600"
                                   title={evidencia.nombre_original}
                                 >
                                   {evidencia.nombre_original || "Evidencia"}
                                 </p>
-
-                                {esImagen ? (
-                                  <span className={`inline-flex rounded-md px-2 py-1 text-[10px] font-bold ${procesada
-                                    ? "bg-emerald-50 text-emerald-700"
-                                    : "bg-amber-50 text-amber-700"
-                                    }`}>
-                                    {procesada ? "Analizada" : "Pendiente de IA"}
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex rounded-md bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-600">
-                                    {esVideo ? "Video" : "Documento"}
-                                  </span>
-                                )}
                               </div>
                             </div>
                           );
@@ -587,186 +627,21 @@ export default function App() {
 
 
             {analisisGuardados.length > 0 && (
-              <section id="resultado" className="mt-5 scroll-mt-24">
-                <div className="overflow-hidden rounded-2xl border border-vw-borde bg-white">
-                  <div className="flex flex-wrap items-center justify-between gap-3 bg-[#001e50] px-5 py-4 text-white">
-                    <div>
-                      <h2 className="text-[16px] font-bold">
-                        Resultados del análisis IA
-                      </h2>
-                      <p className="mt-1 text-[12px] text-white/70">
-                        Inspecciones vinculadas a {cita?.folio || "la cita"}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold">
-                      {analisisGuardados.length} fotografías analizadas
-                    </span>
-                  </div>
-
-                  <div className="grid gap-4 p-4 lg:grid-cols-2 lg:p-5">
-                    {analisisGuardados.map((analisis) => {
-                      const reporte = analisis.reporte || {};
-                      const danos = Array.isArray(reporte.danos) ? reporte.danos : [];
-                      const objetos = Array.isArray(reporte.objetos_ajenos)
-                        ? reporte.objetos_ajenos
-                        : [];
-
-                      const evidencia = evidenciasGuardadas.find(
-                        (item) => String(item.id) === String(analisis.evidencia_id)
-                      );
-
-                      return (
-                        <article
-                          key={analisis.id}
-                          className="overflow-hidden rounded-xl border border-vw-borde bg-white"
-                        >
-                          <div className="flex h-64 items-center justify-center bg-slate-100">
-                            {analisis.imagen_url ? (
-                              <a
-                                href={analisis.imagen_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="h-full w-full"
-                              >
-                                <img
-                                  src={analisis.imagen_url}
-                                  alt="Fotografía anotada por IA"
-                                  className="h-full w-full object-contain"
-                                  loading="lazy"
-                                />
-                              </a>
-                            ) : (
-                              <span className="text-[12px] text-slate-400">
-                                Imagen no disponible
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="space-y-4 p-4">
-                            <div>
-                              <h3 className="truncate text-[13px] font-bold text-vw">
-                                {evidencia?.nombre_original || `Evidencia ${analisis.evidencia_id}`}
-                              </h3>
-                              <p className="mt-1 text-[11px] text-slate-400">
-                                {analisis.creado_en
-                                  ? new Date(analisis.creado_en).toLocaleString("es-MX")
-                                  : ""}
-                              </p>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="rounded-xl bg-red-50 p-3">
-                                <p className="text-[23px] font-bold text-red-600">
-                                  {danos.length}
-                                </p>
-                                <p className="text-[11px] text-red-700">
-                                  Daños detectados
-                                </p>
-                              </div>
-                              <div className="rounded-xl bg-orange-50 p-3">
-                                <p className="text-[23px] font-bold text-orange-600">
-                                  {objetos.length}
-                                </p>
-                                <p className="text-[11px] text-orange-700">
-                                  Objetos ajenos
-                                </p>
-                              </div>
-                            </div>
-
-                            {reporte.resumen && (
-                              <p className="text-[12px] leading-5 text-slate-600">
-                                {reporte.resumen}
-                              </p>
-                            )}
-
-                            {danos.length > 0 && (
-                              <div>
-                                <h4 className="mb-2 text-[12px] font-bold text-red-700">
-                                  Daños identificados
-                                </h4>
-                                <div className="space-y-2">
-                                  {danos.map((dano, index) => (
-                                    <div
-                                      key={index}
-                                      className="rounded-lg border-l-2 border-red-500 bg-red-50 p-3"
-                                    >
-                                      <p className="text-[12px] font-semibold text-slate-800">
-                                        {dano.pieza || "Pieza no identificada"}
-                                        {dano.tipo ? ` · ${dano.tipo}` : ""}
-                                      </p>
-                                      <p className="mt-1 text-[11px] text-slate-600">
-                                        {dano.descripcion}
-                                      </p>
-                                      {dano.ubicacion && (
-                                        <p className="mt-1 text-[11px] text-red-700">
-                                          Ubicación: {dano.ubicacion}
-                                        </p>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {objetos.length > 0 && (
-                              <div>
-                                <h4 className="mb-2 text-[12px] font-bold text-orange-700">
-                                  Objetos ajenos identificados
-                                </h4>
-                                <div className="space-y-2">
-                                  {objetos.map((objeto, index) => (
-                                    <div
-                                      key={index}
-                                      className="rounded-lg border-l-2 border-orange-500 bg-orange-50 p-3"
-                                    >
-                                      <p className="text-[12px] font-semibold text-slate-800">
-                                        {objeto.objeto || "Objeto sin identificar"}
-                                      </p>
-                                      <p className="mt-1 text-[11px] text-slate-600">
-                                        {objeto.descripcion}
-                                      </p>
-                                      {objeto.ubicacion && (
-                                        <p className="mt-1 text-[11px] text-orange-700">
-                                          Ubicación: {objeto.ubicacion}
-                                        </p>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {danos.length === 0 && objetos.length === 0 && (
-                              <p className="rounded-lg bg-slate-50 p-3 text-[12px] text-slate-500">
-                                No se identificaron incidencias visibles en esta fotografía.
-                              </p>
-                            )}
-
-                            {analisis.imagen_url && (
-                              <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
-                                <a
-                                  href={analisis.imagen_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="rounded-lg border border-vw-borde px-3 py-2 text-center text-[12px] font-semibold text-vw"
-                                >
-                                  Visualizar
-                                </a>
-                                <a
-                                  href={analisis.imagen_url}
-                                  download={`inspeccion_${analisis.id}.png`}
-                                  className="rounded-lg bg-vw-btn px-3 py-2 text-center text-[12px] font-semibold text-white"
-                                >
-                                  Descargar
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
-                </div>
+              <section id="resultado" className="scroll-mt-24">
+                <Resultados
+                  analisisGuardados={analisisGuardados}
+                  evidenciasGuardadas={evidenciasGuardadas}
+                  cita={cita}
+                  onVolver={() =>
+                    document.getElementById("carga")?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "start",
+                    })
+                  }
+                  onVerImagen={(src, nombre) =>
+                    setVisor({ src, tipo: "imagen", nombre, descarga: src })
+                  }
+                />
               </section>
             )}
 
@@ -795,6 +670,16 @@ export default function App() {
           videoRef={videoRef}
           onCerrar={cerrarCamara}
           onCapturar={tomarFoto}
+        />
+      )}
+
+      {visor && (
+        <Visor
+          src={visor.src}
+          tipo={visor.tipo}
+          nombre={visor.nombre}
+          descarga={visor.descarga}
+          onCerrar={() => setVisor(null)}
         />
       )}
     </div>
