@@ -1,376 +1,340 @@
-
-import { useEffect, useMemo, useRef, useState } from "react";
+// src/components/SelectorCita.jsx
+import { useEffect, useMemo, useState } from "react";
 import {
-  Calendar, CalendarCheck, Car, Check, ChevronLeft, ChevronRight,
-  CircleAlert, LoaderCircle, RefreshCw, Search, User, X,
+  ArrowLeft, CalendarDays, CarFront, ChevronLeft, ChevronRight,
+  Clock3, LoaderCircle, RefreshCw, Search, UserRound, X,
 } from "lucide-react";
 import { Tarjeta } from "./Tarjeta.jsx";
 import { API_BASE } from "../lib/api.js";
 
-function fechaLocal(fecha) {
-  const anio = fecha.getFullYear();
-  const mes = String(fecha.getMonth() + 1).padStart(2, "0");
-  const dia = String(fecha.getDate()).padStart(2, "0");
-  return `${anio}-${mes}-${dia}`;
+const ZONA_HORARIA = "America/Mexico_City";
+const INICIO_AGENDA = 8 * 60;
+const FIN_AGENDA = 16 * 60;
+const ANCHO_ASESOR = 190;
+const ANCHO_HORA = 190;
+
+function fechaHoy() {
+  const partes = new Intl.DateTimeFormat("en-US", {
+    timeZone: ZONA_HORARIA, year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const valor = (tipo) => partes.find((parte) => parte.type === tipo)?.value || "";
+  return `${valor("year")}-${valor("month")}-${valor("day")}`;
 }
 
-function formatearFechaHora(valor) {
-  if (!valor) return "Sin fecha";
-  const fecha = new Date(valor);
-  if (Number.isNaN(fecha.getTime())) return "Sin fecha";
+function moverFecha(fecha, dias) {
+  const [anio, mes, dia] = fecha.split("-").map(Number);
+  const siguiente = new Date(Date.UTC(anio, mes - 1, dia + dias));
+  return siguiente.toISOString().slice(0, 10);
+}
+
+function fechaLegible(fecha) {
+  if (!fecha) return "";
+  const [anio, mes, dia] = fecha.split("-").map(Number);
   return new Intl.DateTimeFormat("es-MX", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(fecha);
+    dateStyle: "full", timeZone: "UTC",
+  }).format(new Date(Date.UTC(anio, mes - 1, dia)));
 }
 
-function formatearTelefono(valor) {
-  const digitos = String(valor || "").replace(/\D/g, "");
-  if (digitos.length === 12 && digitos.startsWith("52")) {
-    return `+52 ${digitos.slice(2, 5)} ${digitos.slice(5, 8)} ${digitos.slice(8)}`;
+function datosFecha(valor) {
+  if (!valor) return null;
+  const texto = String(valor);
+  // Las fechas sin zona horaria ya representan la hora local capturada en el CRM.
+  const local = texto.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})/);
+  if (local && !/(Z|[+-]\d{2}:?\d{2})$/i.test(texto)) {
+    return { fecha: local[1], hora: `${local[2]}:${local[3]}` };
   }
-  if (digitos.length === 10) {
-    return `${digitos.slice(0, 3)} ${digitos.slice(3, 6)} ${digitos.slice(6)}`;
-  }
-  return valor || "";
+  const fecha = new Date(valor);
+  if (Number.isNaN(fecha.getTime())) return null;
+  const partes = new Intl.DateTimeFormat("en-US", {
+    timeZone: ZONA_HORARIA, hourCycle: "h23", year: "numeric", month: "2-digit",
+    day: "2-digit", hour: "2-digit", minute: "2-digit",
+  }).formatToParts(fecha);
+  const dato = (tipo) => partes.find((parte) => parte.type === tipo)?.value || "";
+  return {
+    fecha: `${dato("year")}-${dato("month")}-${dato("day")}`,
+    hora: `${dato("hour")}:${dato("minute")}`,
+  };
 }
 
-function Dato({ etiqueta, valor }) {
+function minutoCita(cita) {
+  const hora = datosFecha(cita.fecha)?.hora;
+  if (!hora) return null;
+  const [horas, minutos] = hora.split(":").map(Number);
+  return horas * 60 + minutos;
+}
+
+function horaCelda(cita) {
+  const minuto = minutoCita(cita);
+  if (minuto === null) return "";
+  const inicio = Math.floor(minuto / 30) * 30;
+  return `${String(Math.floor(inicio / 60)).padStart(2, "0")}:${String(inicio % 60).padStart(2, "0")}`;
+}
+
+function normalizar(valor) {
+  return String(valor ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+function grupoCita(cita) {
+  return `${cita.agencia || "Sin agencia"}::${cita.asesor || "Sin asesor"}`;
+}
+
+function estiloServicio(tipo) {
+  const texto = normalizar(tipo);
+  if (texto.includes("diagn")) return "border-violet-200 bg-violet-50 text-violet-700";
+  if (texto.includes("repar")) return "border-amber-200 bg-amber-50 text-amber-800";
+  if (texto.includes("campa")) return "border-teal-200 bg-teal-50 text-teal-800";
+  return "border-blue-200 bg-blue-50 text-blue-800";
+}
+
+function Dato({ titulo, valor }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[10px] uppercase tracking-wide text-slate-400">{etiqueta}</dt>
-      <dd className="break-words text-[12px] font-semibold text-vw">{valor || "—"}</dd>
+      <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{titulo}</dt>
+      <dd className="mt-1 break-words text-[12px] font-semibold text-vw">{valor || "—"}</dd>
     </div>
   );
 }
 
-function TarjetaCita({ item, seleccionada, bloqueado, onSeleccion }) {
-  const servicio = (item.tipo_cita || "Ingreso con cita").toUpperCase();
-
+function CitaAgenda({ cita, bloqueado, onSeleccion, mostrarAsesor = false }) {
+  const servicio = cita.tipo_cita || "Servicio sin especificar";
   return (
     <button
       type="button"
       disabled={bloqueado}
-      aria-pressed={seleccionada}
-      onClick={() => onSeleccion(item)}
-      className={`w-[min(82vw,290px)] shrink-0 snap-start rounded-xl border p-3 text-left transition-colors disabled:opacity-60 sm:w-[235px] ${seleccionada
-          ? "border-vw-azul bg-vw-claro/70 ring-2 ring-vw-azul/20"
-          : "border-vw-borde bg-white hover:border-vw-azul/70"
-        }`}
+      onClick={() => onSeleccion(cita)}
+      className="group w-full min-w-0 rounded-xl border border-[#D6E0ED] bg-white p-3 text-left shadow-sm transition hover:border-vw-azul hover:bg-[#F7FAFF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vw-azul disabled:cursor-not-allowed disabled:opacity-60"
+      aria-label={`Abrir cita de ${cita.cliente || "cliente sin nombre"} a las ${datosFecha(cita.fecha)?.hora || "hora desconocida"}`}
     >
-      <div className="flex items-start gap-2">
-        <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${seleccionada ? "bg-vw-azul text-white" : "bg-vw-claro text-vw-azul"
-          }`}>
-          <Car size={17} />
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1 text-[11px] font-bold text-vw-azul">
+          <Clock3 size={13} /> {datosFecha(cita.fecha)?.hora || "--:--"}
         </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-bold text-vw">
-            {item.unidad || "Vehículo sin modelo"}
-          </p>
-          <p className="truncate text-[10px] text-slate-500">
-            {item.agencia || "Sin agencia"}
-          </p>
-        </div>
-        <span className="shrink-0 rounded-md bg-vw-claro px-1.5 py-1 text-[10px] font-semibold text-vw-azul">
-          {item.folio}
-        </span>
+        {cita.folio && <span className="max-w-[75px] truncate rounded bg-vw-claro px-1.5 py-0.5 text-[10px] font-semibold text-vw">#{cita.folio}</span>}
       </div>
-
-      <p className="mt-3 line-clamp-2 min-h-8 text-[12px] font-bold uppercase leading-tight text-vw">
-        {item.cliente || "Sin cliente"}
+      <p className="mt-2 line-clamp-2 text-[12px] font-bold uppercase leading-snug text-vw">{cita.cliente || "Cliente sin nombre"}</p>
+      <p className="mt-1 flex items-center gap-1.5 truncate text-[11px] text-slate-600">
+        <CarFront size={13} className="shrink-0" /> {cita.unidad || "Modelo no registrado"}
       </p>
-      <p className="mt-1 truncate font-mono text-[11px] text-slate-500">
-        {item.vin || "Sin VIN"}
-      </p>
-      <p className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-500">
-        <Calendar size={12} className="shrink-0" />
-        {formatearFechaHora(item.fecha)}
-      </p>
-      <span className={`mt-3 flex min-h-8 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-center text-[10px] font-semibold text-white ${seleccionada ? "bg-vw-azul" : "bg-vw-btn"
-        }`}>
-        <CalendarCheck size={12} className="shrink-0" />
-        <span className="line-clamp-2">{servicio}</span>
+      {mostrarAsesor && (
+        <p className="mt-1 flex items-center gap-1.5 truncate text-[11px] text-slate-500">
+          <UserRound size={13} className="shrink-0" /> {cita.asesor || "Sin asesor"}
+        </p>
+      )}
+      <span className={`mt-2 inline-block max-w-full truncate rounded-md border px-2 py-1 text-[10px] font-semibold ${estiloServicio(servicio)}`} title={servicio}>
+        {servicio}
       </span>
-      <p className="mt-2.5 flex items-center gap-1.5 text-[11px] text-slate-500">
-        <User size={12} className="shrink-0" />
-        <span className="truncate">Asesor: {item.asesor || "—"}</span>
-      </p>
     </button>
   );
 }
 
 export default function SelectorCita({ cita, bloqueado, onSeleccion }) {
+  const [fecha, setFecha] = useState(fechaHoy);
   const [busqueda, setBusqueda] = useState("");
-  const [desde, setDesde] = useState("");
-  const [hasta, setHasta] = useState("");
+  const [agencia, setAgencia] = useState("Todas");
   const [citas, setCitas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [recarga, setRecarga] = useState(0);
-  const tiraRef = useRef(null);
-  const rangoInvalido = Boolean(desde && hasta && desde > hasta);
-
-  function periodo(tipo) {
-    const ahora = new Date();
-    const fin = fechaLocal(ahora);
-
-    if (tipo === "todas") {
-      setDesde("");
-      setHasta("");
-    } else if (tipo === "hoy") {
-      setDesde(fin);
-      setHasta(fin);
-    } else if (tipo === "semana") {
-      const inicio = new Date(ahora);
-      inicio.setDate(inicio.getDate() - 6);
-      setDesde(fechaLocal(inicio));
-      setHasta(fin);
-    } else if (tipo === "mes") {
-      setDesde(fechaLocal(new Date(ahora.getFullYear(), ahora.getMonth(), 1)));
-      setHasta(fin);
-    }
-  }
 
   useEffect(() => {
-    if (rangoInvalido) {
-      setCargando(false);
-      return;
-    }
-
+    if (cita) return;
     const control = new AbortController();
-
     const temporizador = setTimeout(async () => {
       setCargando(true);
       setError("");
-
       try {
-        const parametros = new URLSearchParams({ limite: "100" });
+        const parametros = new URLSearchParams({ limite: "100", desde: fecha, hasta: fecha });
         if (busqueda.trim()) parametros.set("q", busqueda.trim());
-        if (desde) parametros.set("desde", desde);
-        if (hasta) parametros.set("hasta", hasta);
-
-        const respuesta = await fetch(
-          `${API_BASE}/inspector-ai/api/citas/?${parametros}`,
-          { signal: control.signal }
-        );
-
+        const respuesta = await fetch(`${API_BASE}/inspector-ai/api/citas/?${parametros}`, { signal: control.signal });
         if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
-
         const datos = await respuesta.json();
-
+        if (!control.signal.aborted) setCitas(Array.isArray(datos) ? datos : []);
+      } catch (errorConsulta) {
         if (!control.signal.aborted) {
-          setCitas(Array.isArray(datos) ? datos : []);
-        }
-      } catch (e) {
-        if (e.name !== "AbortError") {
-          setError("No se pudieron cargar las citas. Intenta nuevamente.");
+          console.error("Error consultando agenda:", errorConsulta);
           setCitas([]);
+          setError("No se pudieron consultar las citas del día.");
         }
       } finally {
         if (!control.signal.aborted) setCargando(false);
       }
-    }, busqueda ? 300 : 0);
+    }, busqueda.trim() ? 300 : 0);
+    return () => { control.abort(); clearTimeout(temporizador); };
+  }, [fecha, busqueda, recarga, cita?.id]);
 
-    return () => {
-      control.abort();
-      clearTimeout(temporizador);
-    };
-  }, [busqueda, desde, hasta, recarga, rangoInvalido]);
+  const agencias = useMemo(() => ["Todas", ...new Set(citas.map((item) => item.agencia).filter(Boolean))], [citas]);
+  useEffect(() => {
+    if (agencia !== "Todas" && !agencias.includes(agencia)) setAgencia("Todas");
+  }, [agencia, agencias]);
 
-  // Filtra también en React si el backend todavía no procesa las fechas.
   const citasVisibles = useMemo(() => citas.filter((item) => {
-    const fecha = String(item.fecha || "").slice(0, 10);
-    if (desde && (!fecha || fecha < desde)) return false;
-    if (hasta && (!fecha || fecha > hasta)) return false;
-    return true;
-  }), [citas, desde, hasta]);
+    if (datosFecha(item.fecha)?.fecha !== fecha) return false;
+    if (agencia !== "Todas" && item.agencia !== agencia) return false;
+    const texto = [item.cliente, item.unidad, item.vin, item.folio, item.asesor, item.telefono, item.tipo_cita]
+      .map(normalizar).join(" ");
+    return !busqueda.trim() || texto.includes(normalizar(busqueda.trim()));
+  }).sort((a, b) => (minutoCita(a) ?? 0) - (minutoCita(b) ?? 0)), [citas, fecha, agencia, busqueda]);
+
+  const asesores = useMemo(() => {
+    const grupos = new Map();
+    citasVisibles.forEach((item) => {
+      const id = grupoCita(item);
+      if (!grupos.has(id)) grupos.set(id, { id, nombre: item.asesor || "Sin asesor", agencia: item.agencia || "Sin agencia" });
+    });
+    return Array.from(grupos.values()).sort((a, b) => a.agencia.localeCompare(b.agencia, "es") || a.nombre.localeCompare(b.nombre, "es"));
+  }, [citasVisibles]);
+
+  const horarios = useMemo(() => {
+    const minutos = citasVisibles.map(minutoCita).filter((valor) => valor !== null);
+    const inicio = Math.min(INICIO_AGENDA, ...minutos.map((valor) => Math.floor(valor / 30) * 30));
+    const fin = Math.max(FIN_AGENDA, ...minutos.map((valor) => Math.floor(valor / 30) * 30));
+    const resultado = [];
+    for (let minuto = inicio; minuto <= fin; minuto += 30) {
+      resultado.push(`${String(Math.floor(minuto / 60)).padStart(2, "0")}:${String(minuto % 60).padStart(2, "0")}`);
+    }
+    return resultado;
+  }, [citasVisibles]);
+
+  const citasPorCelda = useMemo(() => {
+    const mapa = new Map();
+    citasVisibles.forEach((item) => {
+      const clave = `${grupoCita(item)}|${horaCelda(item)}`;
+      mapa.set(clave, [...(mapa.get(clave) || []), item]);
+    });
+    return mapa;
+  }, [citasVisibles]);
+
+  if (cita) {
+    return (
+      <Tarjeta className="min-w-0 overflow-hidden">
+        <div className="p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-vw-azul">Cita seleccionada</p>
+              <h2 className="mt-1 text-[17px] font-bold uppercase text-vw">{cita.cliente || "Cliente sin nombre"}</h2>
+            </div>
+            <button type="button" onClick={() => onSeleccion(null)} disabled={bloqueado}
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-vw-borde bg-white px-4 text-[12px] font-semibold text-vw transition hover:bg-vw-claro disabled:opacity-50">
+              <ArrowLeft size={16} /> Volver a la agenda
+            </button>
+          </div>
+          <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-vw-borde pt-4 sm:grid-cols-3 lg:grid-cols-6">
+            <Dato titulo="Folio" valor={cita.folio} />
+            <Dato titulo="Fecha y hora" valor={`${fechaLegible(datosFecha(cita.fecha)?.fecha)} · ${datosFecha(cita.fecha)?.hora || "--:--"}`} />
+            <Dato titulo="Agencia" valor={cita.agencia} />
+            <Dato titulo="Asesor" valor={cita.asesor} />
+            <Dato titulo="Vehículo" valor={cita.unidad} />
+            <Dato titulo="VIN" valor={cita.vin} />
+          </dl>
+        </div>
+      </Tarjeta>
+    );
+  }
 
   return (
     <Tarjeta className="min-w-0 overflow-hidden">
       <div className="p-4 sm:p-5 lg:p-6">
-        <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-vw-claro text-vw-azul">
-            <CalendarCheck size={19} />
-          </span>
-          <div className="min-w-0">
-            <h2 className="text-[14px] font-bold text-vw">Seleccionar cita</h2>
-            <p className="text-[12px] text-slate-500">
-              Busca la cita a la que se anexarán las evidencias y los resultados de IA.
-            </p>
+        <div className="flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-vw-claro text-vw-azul"><CalendarDays size={21} /></span>
+          <div>
+            <h2 className="text-[17px] font-bold text-vw">Agenda de citas</h2>
+            <p className="text-[12px] text-slate-500">Selecciona una cita para abrir su expediente de evidencias y el analizador IA.</p>
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-          <div className="relative min-w-0">
-            <label htmlFor="buscar-cita" className="mb-1 block text-[11px] font-semibold text-slate-600">
-              Buscar cita
-            </label>
-            <Search size={16} className="pointer-events-none absolute bottom-3.5 left-3.5 text-slate-400" />
-            <input
-              id="buscar-cita"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Cliente, teléfono, VIN, folio o modelo"
-              className="min-h-11 w-full rounded-xl border border-[#c3d6ee] bg-white pl-10 pr-10 text-[16px] text-vw outline-none focus:border-vw-azul sm:text-[13px]"
-            />
-            {cargando && (
-              <LoaderCircle size={16} className="absolute bottom-3.5 right-3.5 animate-spin text-vw-azul" />
-            )}
+        <div className="mt-5 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" aria-label="Día anterior" onClick={() => setFecha(moverFecha(fecha, -1))}
+              className="grid h-11 w-11 place-items-center rounded-xl border border-vw-borde text-vw hover:bg-vw-claro"><ChevronLeft size={18} /></button>
+            <button type="button" onClick={() => setFecha(fechaHoy())}
+              className="h-11 rounded-xl border border-vw-borde px-4 text-[12px] font-semibold text-vw hover:bg-vw-claro">Hoy</button>
+            <button type="button" aria-label="Día siguiente" onClick={() => setFecha(moverFecha(fecha, 1))}
+              className="grid h-11 w-11 place-items-center rounded-xl border border-vw-borde text-vw hover:bg-vw-claro"><ChevronRight size={18} /></button>
+            <input aria-label="Fecha de la agenda" type="date" value={fecha} onChange={(evento) => evento.target.value && setFecha(evento.target.value)}
+              className="h-11 min-w-0 rounded-xl border border-vw-borde bg-white px-3 text-[13px] font-semibold text-vw outline-none focus:border-vw-azul" />
           </div>
-
-          <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
-            <div className="min-w-0">
-              <label htmlFor="fecha-desde" className="mb-1 block text-[11px] font-semibold text-slate-600">
-                Desde
-              </label>
-              <input
-                id="fecha-desde"
-                type="date"
-                value={desde}
-                onChange={(e) => setDesde(e.target.value)}
-                className="min-h-11 w-full min-w-0 rounded-xl border border-[#c3d6ee] bg-white px-2 text-[13px] text-vw outline-none focus:border-vw-azul"
-              />
-            </div>
-            <div className="min-w-0">
-              <label htmlFor="fecha-hasta" className="mb-1 block text-[11px] font-semibold text-slate-600">
-                Hasta
-              </label>
-              <input
-                id="fecha-hasta"
-                type="date"
-                value={hasta}
-                onChange={(e) => setHasta(e.target.value)}
-                className="min-h-11 w-full min-w-0 rounded-xl border border-[#c3d6ee] bg-white px-2 text-[13px] text-vw outline-none focus:border-vw-azul"
-              />
-            </div>
+          <div className="relative w-full xl:max-w-sm">
+            <Search size={17} className="pointer-events-none absolute left-3 top-3.5 text-slate-400" />
+            <input value={busqueda} onChange={(evento) => setBusqueda(evento.target.value)}
+              placeholder="Cliente, teléfono, VIN, folio o modelo" aria-label="Buscar citas"
+              className="min-h-11 w-full rounded-xl border border-vw-borde bg-white pl-10 pr-10 text-[16px] text-vw outline-none focus:border-vw-azul sm:text-[13px]" />
+            {busqueda && <button type="button" onClick={() => setBusqueda("")} aria-label="Limpiar búsqueda"
+              className="absolute right-3 top-3 grid h-5 w-5 place-items-center text-slate-400"><X size={16} /></button>}
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2">
-          {[
-            ["hoy", "Hoy"],
-            ["semana", "Últimos 7 días"],
-            ["mes", "Este mes"],
-            ["todas", "Todas las fechas"],
-          ].map(([tipo, etiqueta]) => (
-            <button
-              key={tipo}
-              type="button"
-              onClick={() => periodo(tipo)}
-              className="min-h-9 rounded-lg border border-vw-borde bg-white px-3 py-1.5 text-[11px] font-semibold text-vw hover:border-vw-azul hover:bg-vw-claro"
-            >
-              {etiqueta}
-            </button>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[13px] font-bold capitalize text-vw">{fechaLegible(fecha)}</p>
+          <p className="text-[12px] font-semibold text-slate-500">
+            {cargando ? <span className="inline-flex items-center gap-2"><LoaderCircle size={14} className="animate-spin" /> Cargando...</span>
+              : `${citasVisibles.length} cita${citasVisibles.length === 1 ? "" : "s"}`}
+          </p>
+        </div>
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
+          {agencias.map((item) => (
+            <button key={item} type="button" onClick={() => setAgencia(item)}
+              className={`shrink-0 rounded-lg border px-3 py-2 text-[12px] font-semibold transition ${agencia === item
+                ? "border-vw-azul bg-vw-azul text-white" : "border-vw-borde bg-white text-vw hover:bg-vw-claro"}`}>{item}</button>
           ))}
         </div>
 
-        {rangoInvalido && (
-          <p role="alert" className="mt-2 text-[12px] text-rose-600">
-            La fecha inicial no puede ser posterior a la final.
-          </p>
-        )}
-
-        {cita && (
-          <div className="mt-4 overflow-hidden rounded-xl border border-emerald-200">
-            <div className="flex flex-wrap items-center gap-2 bg-emerald-50 px-3 py-2.5">
-              <Check size={18} className="text-emerald-600" />
-              <p className="text-[12px] font-bold text-emerald-900">Cita seleccionada</p>
-              <span className="rounded-md bg-white px-2 py-1 text-[11px] font-semibold text-emerald-800">
-                {cita.folio}
-              </span>
-              <button
-                type="button"
-                onClick={() => onSeleccion(null)}
-                disabled={bloqueado}
-                aria-label="Quitar cita"
-                className="ml-auto grid h-10 w-10 place-items-center rounded-lg border border-emerald-200 bg-white text-slate-500 disabled:opacity-50"
-              >
-                <X size={17} />
-              </button>
-            </div>
-            <dl className="grid grid-cols-2 gap-3 p-3 sm:grid-cols-4 sm:p-4">
-              <Dato etiqueta="Unidad" valor={cita.unidad} />
-              <Dato etiqueta="Cliente" valor={cita.cliente} />
-              <Dato etiqueta="VIN" valor={cita.vin} />
-              <Dato etiqueta="Teléfono" valor={formatearTelefono(cita.telefono)} />
-              <Dato etiqueta="Servicio" valor={cita.tipo_cita} />
-              <Dato etiqueta="Ingreso" valor={formatearFechaHora(cita.fecha)} />
-              <Dato etiqueta="Asesor" valor={cita.asesor} />
-              <Dato etiqueta="Agencia" valor={cita.agencia} />
-            </dl>
+        {error ? (
+          <div role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-5 text-center text-[12px] text-rose-800">
+            {error}
+            <button type="button" onClick={() => setRecarga((valor) => valor + 1)}
+              className="mx-auto mt-3 flex items-center gap-2 rounded-lg bg-white px-3 py-2 font-semibold text-vw"><RefreshCw size={15} /> Reintentar</button>
           </div>
-        )}
-
-        <div className="mt-4 flex items-center justify-between gap-2">
-          <p className="text-[12px] font-semibold text-vw">
-            {cargando
-              ? "Buscando citas..."
-              : `${rangoInvalido ? 0 : citasVisibles.length} citas encontradas`}
-          </p>
-          <div className="hidden gap-2 sm:flex">
-            <button
-              type="button"
-              aria-label="Citas anteriores"
-              onClick={() => tiraRef.current?.scrollBy({ left: -260, behavior: "smooth" })}
-              className="grid h-10 w-10 place-items-center rounded-lg border border-vw-borde text-vw"
-            >
-              <ChevronLeft size={17} />
-            </button>
-            <button
-              type="button"
-              aria-label="Citas siguientes"
-              onClick={() => tiraRef.current?.scrollBy({ left: 260, behavior: "smooth" })}
-              className="grid h-10 w-10 place-items-center rounded-lg border border-vw-borde text-vw"
-            >
-              <ChevronRight size={17} />
-            </button>
+        ) : cargando ? (
+          <div className="mt-4 grid gap-3 md:grid-cols-3">{[1, 2, 3].map((numero) => <div key={numero} className="h-36 animate-pulse rounded-xl bg-vw-claro" />)}</div>
+        ) : citasVisibles.length === 0 ? (
+          <div className="mt-4 rounded-xl border border-dashed border-vw-borde p-8 text-center text-[13px] text-slate-500">
+            No hay citas para esta fecha y los filtros seleccionados.
           </div>
-        </div>
-
-        <div
-          ref={tiraRef}
-          className="mt-2 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-3"
-          style={{ WebkitOverflowScrolling: "touch" }}
-        >
-          {error ? (
-            <div role="alert" className="w-full rounded-xl border border-rose-200 bg-rose-50 p-5 text-center text-[12px] text-rose-800">
-              <CircleAlert size={20} className="mx-auto mb-2" />
-              {error}
-              <button
-                type="button"
-                onClick={() => setRecarga((valor) => valor + 1)}
-                className="mx-auto mt-3 flex items-center gap-1 rounded-lg bg-white px-3 py-2 font-semibold text-vw"
-              >
-                <RefreshCw size={14} /> Reintentar
-              </button>
+        ) : (
+          <>
+            {/* En móvil resulta más cómodo recorrer las citas cronológicamente. */}
+            <div className="mt-4 space-y-3 lg:hidden">
+              {citasVisibles.map((item) => (
+                <div key={item.id} className="flex items-start gap-3">
+                  <span className="w-[52px] shrink-0 pt-3 text-[11px] font-bold tabular-nums text-vw">{datosFecha(item.fecha)?.hora || "--:--"}</span>
+                  <div className="min-w-0 flex-1"><CitaAgenda cita={item} bloqueado={bloqueado} onSeleccion={onSeleccion} mostrarAsesor /></div>
+                </div>
+              ))}
             </div>
-          ) : cargando && citasVisibles.length === 0 ? (
-            [1, 2, 3].map((n) => (
-              <div key={n} className="h-48 w-[235px] shrink-0 animate-pulse rounded-xl bg-vw-claro" />
-            ))
-          ) : rangoInvalido || citasVisibles.length === 0 ? (
-            <div className="w-full rounded-xl border border-dashed border-vw-borde p-6 text-center text-[12px] text-slate-500">
-              No hay citas para la búsqueda o el período seleccionado.
-            </div>
-          ) : (
-            citasVisibles.map((item) => (
-              <TarjetaCita
-                key={item.id}
-                item={item}
-                seleccionada={cita?.id === item.id}
-                bloqueado={bloqueado}
-                onSeleccion={onSeleccion}
-              />
-            ))
-          )}
-        </div>
 
-        <p className="mt-1 text-[11px] text-slate-400">
-          Desliza horizontalmente para explorar las citas.
-          {citas.length >= 100
-            ? " La consulta está limitada a 100 resultados; afina la búsqueda o usa filtros de fechas del servidor para ver citas más antiguas."
-            : ""}
-        </p>
+            {/* En escritorio se conserva la matriz asesor / horario del CRM. */}
+            <div className="mt-4 hidden max-h-[690px] overflow-auto rounded-xl border border-vw-borde lg:block">
+              <div className="grid w-max min-w-full" style={{
+                gridTemplateColumns: `${ANCHO_ASESOR}px repeat(${horarios.length}, ${ANCHO_HORA}px)`,
+                gridTemplateRows: `44px repeat(${asesores.length}, minmax(155px, auto))`,
+              }}>
+                <div className="sticky left-0 top-0 z-30 flex items-center border-b border-r border-vw-borde bg-white px-4 text-[11px] font-bold uppercase text-vw">Asesor</div>
+                {horarios.map((hora) => (
+                  <div key={hora} className="sticky top-0 z-20 flex items-center justify-center border-b border-r border-vw-borde bg-white text-[11px] font-bold text-vw">{hora}</div>
+                ))}
+                {asesores.map((asesor) => (
+                  <div key={asesor.id} className="contents">
+                    <div className="sticky left-0 z-10 flex min-h-[155px] flex-col justify-center border-b border-r border-vw-borde bg-white px-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-vw-claro text-vw-azul"><UserRound size={17} /></div>
+                      <p className="mt-2 line-clamp-2 text-[12px] font-bold text-vw">{asesor.nombre}</p>
+                      <p className="mt-1 text-[10px] text-slate-500">{asesor.agencia}</p>
+                      <p className="mt-2 text-[10px] font-semibold text-vw-azul">{citasVisibles.filter((item) => grupoCita(item) === asesor.id).length} citas</p>
+                    </div>
+                    {horarios.map((hora) => (
+                      <div key={`${asesor.id}-${hora}`} className="min-h-[155px] border-b border-r border-vw-borde bg-slate-50/60 p-2">
+                        <div className="flex max-h-[190px] flex-col gap-2 overflow-y-auto">
+                          {(citasPorCelda.get(`${asesor.id}|${hora}`) || []).map((item) => (
+                            <CitaAgenda key={item.id} cita={item} bloqueado={bloqueado} onSeleccion={onSeleccion} />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </Tarjeta>
   );
