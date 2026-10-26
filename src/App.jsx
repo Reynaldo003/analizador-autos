@@ -1,6 +1,6 @@
 //src/App.jsx
 import { useEffect, useRef, useState } from "react";
-import { Play } from "lucide-react";
+import { Play, X } from "lucide-react";
 import Topbar from "./components/Topbar.jsx";
 import Hero from "./components/Hero.jsx";
 import SelectorCita from "./components/SelectorCita.jsx";
@@ -89,6 +89,34 @@ export default function App() {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const urlsRef = useRef(new Set());
+useEffect(() => {
+  if (!cita) return;
+
+  const scrollY = window.scrollY;
+  const body = document.body;
+
+  const estilosOriginales = {
+    position: body.style.position,
+    top: body.style.top,
+    left: body.style.left,
+    right: body.style.right,
+    width: body.style.width,
+    overflow: body.style.overflow,
+  };
+
+  body.style.position = "fixed";
+  body.style.top = `-${scrollY}px`;
+  body.style.left = "0";
+  body.style.right = "0";
+  body.style.width = "100%";
+  body.style.overflow = "hidden";
+
+  return () => {
+    Object.assign(body.style, estilosOriginales);
+    window.scrollTo(0, scrollY);
+  };
+}, [Boolean(cita)]);
+
   useEffect(() => {
     if (!cita?.id) {
       setEvidenciasGuardadas([]);
@@ -134,7 +162,6 @@ export default function App() {
     setEvidenciasGuardadas([]);
     setAnalisisGuardados([]);
     setProgresoIA("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
   useEffect(
     () => () => {
@@ -191,6 +218,22 @@ export default function App() {
       if (video) video.srcObject = null;
     };
   }, [camaraAbierta]);
+
+  function cerrarExpediente() {
+    if (procesando || analizando || cargandoCita) return;
+
+    if (
+      archivos.length > 0 &&
+      !window.confirm(
+        "Tienes archivos sin guardar. ¿Deseas cerrar el expediente?"
+      )
+    ) {
+      return;
+    }
+
+    seleccionarCita(null);
+  }
+
   function abrirCamara() {
     if (procesando || analizando || archivos.length >= MAX_IMAGENES) return;
     setErrorCamara("");
@@ -405,9 +448,40 @@ export default function App() {
           <div className="mx-auto w-full max-w-[1700px] px-3 pb-7 pt-4 sm:px-5 lg:px-7">
             <div className="space-y-4">
               <div className="min-w-0 space-y-4">
-                <SelectorCita cita={cita} bloqueado={bloqueado || cargandoCita} onSeleccion={seleccionarCita} />
+                <SelectorCita
+                  cita={null}
+                  bloqueado={bloqueado || cargandoCita}
+                  onSeleccion={seleccionarCita}
+                />
                 {cita && (
-                  <>
+                  <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-3">
+                    <div
+                      role="dialog"
+                      aria-modal="true"
+                      aria-label="Expediente de inspección"
+                      className="flex max-h-[94vh] w-full max-w-[1500px] flex-col overflow-hidden rounded-2xl bg-vw-pagina shadow-2xl"
+                    >
+                      <div className="flex shrink-0 items-center justify-between border-b border-vw-borde bg-white px-5 py-4">
+                        <h2 className="text-[15px] font-bold text-vw">
+                          {cita.cliente || "Expediente de inspección"}
+                        </h2>
+
+                        <button
+                          type="button"
+                          onClick={cerrarExpediente}
+                          disabled={bloqueado || cargandoCita}
+                          aria-label="Cerrar expediente"
+                          className="grid h-9 w-9 place-items-center rounded-lg text-vw hover:bg-vw-claro disabled:opacity-50"
+                        >
+                          <X size={20} />
+                        </button>
+                      </div>
+                      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
+                      <SelectorCita
+                        cita={cita}
+                        bloqueado={bloqueado || cargandoCita}
+                        onSeleccion={cerrarExpediente}
+                      />
                     <div id="carga" className="min-w-0 scroll-mt-24">
                       <CargaEvidencia
                         archivos={archivos}
@@ -540,12 +614,9 @@ export default function App() {
                           })}
                         </div>
                       )}
+
                     </section>
-                  </>
-                )}
-              </div>
-            </div>
-            {cita && analisisGuardados.length > 0 && (
+                    {analisisGuardados.length > 0 && (
               <section id="resultado" className="scroll-mt-24">
                 <Resultados
                   analisisGuardados={analisisGuardados}
@@ -562,9 +633,16 @@ export default function App() {
                   }
                 />
               </section>
-            )}
+                    )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </main>
+
         <input
           ref={selectorRef}
           type="file"
