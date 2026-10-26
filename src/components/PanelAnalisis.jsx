@@ -49,13 +49,12 @@ export default function PanelAnalisis({
             <RefreshCw size={15} className="shrink-0" /> Re-analizar
           </button>
         )}
-
-        <button
-          type="button"
-          onClick={() => onAnalizar(false)}
-          disabled={bloqueado || total === 0}
-          className="ml-auto inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-vw-btn px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-vw-btn/25 transition-all hover:bg-vw-btn-alt disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
-        >
+          <button
+            type="button"
+            onClick={() => onAnalizar(false)}
+            disabled={bloqueado || total === 0}
+            className="ml-auto inline-flex min-h-10 w-[530px] max-w-full items-center justify-center gap-2 rounded-xl bg-vw-btn px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-vw-btn/25 transition-all hover:bg-vw-btn-alt disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
+          >
           {analizando ? (
             <>
               <LoaderCircle size={16} className="shrink-0 animate-spin" /> Analizando…
