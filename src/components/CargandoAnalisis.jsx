@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LoaderCircle, ShieldCheck, Sparkles } from "lucide-react";
 
 const MENSAJES = [
@@ -11,11 +11,12 @@ const MENSAJES = [
   "Casi terminamos, no cierres esta página...",
 ];
 
-const RUTA_GIF = "/mario-caminando.gif";
+const RUTA_VIDEO = "/animacion-analisis.mp4";
 
 export default function CargandoAnalisis({ progresoIA }) {
   const [indice, setIndice] = useState(0);
-  const [gifDisponible, setGifDisponible] = useState(true);
+  const [videoDisponible, setVideoDisponible] = useState(true);
+  const videoRef = useRef(null);
 
   useEffect(() => {
     const temporizador = setInterval(() => {
@@ -23,6 +24,12 @@ export default function CargandoAnalisis({ progresoIA }) {
     }, 3200);
 
     return () => clearInterval(temporizador);
+  }, []);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.playbackRate = 3.5; 
+    }
   }, []);
 
   return (
@@ -41,12 +48,14 @@ export default function CargandoAnalisis({ progresoIA }) {
             <Sparkles size={13} className="shrink-0" />
             <span className="truncate">Inspector IA en proceso</span>
           </div>
+
           <p
             key={indice}
             className="cargando-ia-texto mt-1 text-[13px] font-semibold leading-snug text-vw"
           >
             {MENSAJES[indice]}
           </p>
+
           {progresoIA && (
             <p className="mt-1 truncate text-[11px] text-slate-500" title={progresoIA}>
               {progresoIA}
@@ -54,17 +63,27 @@ export default function CargandoAnalisis({ progresoIA }) {
           )}
         </div>
 
-        {gifDisponible && (
-          <img
-            src={RUTA_GIF}
-            alt="Mario Bros caminando cargando análisis"
-            className="cargando-ia-gif -mb-3 h-20 w-auto shrink-0 self-end object-contain sm:h-24"
-            onError={() => setGifDisponible(false)}
-          />
+        {videoDisponible && (
+          <div className="shrink-0 self-center">
+            <div className="grid h-24 w-24 place-items-center rounded-full bg-gradient-to-br from-sky-100 via-white to-blue-100 p-2 shadow-lg ring-4 ring-vw-azul/10 sm:h-28 sm:w-28">
+              <div className="grid h-full w-full place-items-center overflow-hidden rounded-full bg-white">
+                <video
+                  ref={videoRef}
+                  src={RUTA_VIDEO}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="h-full w-full object-cover"
+                  onError={() => setVideoDisponible(false)}
+                />
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
-      <div className="relative mt-2 h-2 overflow-hidden rounded-full bg-vw-borde/70">
+      <div className="relative mt-3 h-2 overflow-hidden rounded-full bg-vw-borde/70">
         <span className="cargando-ia-barra absolute inset-y-0 w-1/3 rounded-full bg-gradient-to-r from-vw-azul/40 via-vw-azul to-vw-azul/40" />
       </div>
 
