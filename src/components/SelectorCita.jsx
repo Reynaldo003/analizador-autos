@@ -2,10 +2,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft, CalendarDays, CarFront, ChevronLeft, ChevronRight,
-  Clock3, LoaderCircle, RefreshCw, Search, UserRound, X,
+  Clock3, LoaderCircle, Receipt, ReceiptText, RefreshCw, Search, UserRound, X,
 } from "lucide-react";
 import { Tarjeta } from "./Tarjeta.jsx";
 import { API_BASE } from "../lib/api.js";
+import BotonTarjetaViajera from "./BotonTarjetaViajera.jsx";
 
 const ZONA_HORARIA = "America/Mexico_City";
 const INICIO_AGENDA = 8 * 60;
@@ -127,7 +128,7 @@ function CitaAgenda({ cita, bloqueado, onSeleccion, mostrarAsesor = false }) {
   );
 }
 
-export default function SelectorCita({ cita, bloqueado, onSeleccion }) {
+export default function SelectorCita({ cita, bloqueado, onSeleccion, onEditarTarjeta }) {
   const [fecha, setFecha] = useState(fechaHoy);
   const [busqueda, setBusqueda] = useState("");
   const [agencia, setAgencia] = useState("Todas");
@@ -217,6 +218,7 @@ export default function SelectorCita({ cita, bloqueado, onSeleccion }) {
               className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-vw-borde bg-white px-4 text-[12px] font-semibold text-vw transition hover:bg-vw-claro disabled:opacity-50">
               <ArrowLeft size={16} /> Volver a la agenda
             </button>
+            <BotonTarjetaViajera bloqueado={bloqueado} onAbrir={() => onEditarTarjeta?.(cita)} />
           </div>
           <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-vw-borde pt-4 sm:grid-cols-3 lg:grid-cols-6">
             <Dato titulo="Folio" valor={cita.folio} />

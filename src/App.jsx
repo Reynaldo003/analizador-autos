@@ -4,6 +4,7 @@ import { Play, X } from "lucide-react";
 import Topbar from "./components/Topbar.jsx";
 import Hero from "./components/Hero.jsx";
 import SelectorCita from "./components/SelectorCita.jsx";
+import PanelTarjetaViajera from "./components/PanelTarjetaViajera.jsx";
 import CargaEvidencia from "./components/CargaEvidencia.jsx";
 import PanelAnalisis from "./components/PanelAnalisis.jsx";
 import Resultados from "./components/Resultados.jsx";
@@ -80,6 +81,7 @@ export default function App() {
   const [capturando, setCapturando] = useState(false);
   const [errorCamara, setErrorCamara] = useState("");
   const [cita, setCita] = useState(null);
+  const [editorTarjetaAbierto, setEditorTarjetaAbierto] = useState(false);
   const [evidenciasGuardadas, setEvidenciasGuardadas] = useState([]);
   const [analisisGuardados, setAnalisisGuardados] = useState([]);
   const [cargandoCita, setCargandoCita] = useState(false);
@@ -89,34 +91,29 @@ export default function App() {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const urlsRef = useRef(new Set());
-useEffect(() => {
-  if (!cita) return;
-
-  const scrollY = window.scrollY;
-  const body = document.body;
-
-  const estilosOriginales = {
-    position: body.style.position,
-    top: body.style.top,
-    left: body.style.left,
-    right: body.style.right,
-    width: body.style.width,
-    overflow: body.style.overflow,
-  };
-
-  body.style.position = "fixed";
-  body.style.top = `-${scrollY}px`;
-  body.style.left = "0";
-  body.style.right = "0";
-  body.style.width = "100%";
-  body.style.overflow = "hidden";
-
-  return () => {
-    Object.assign(body.style, estilosOriginales);
-    window.scrollTo(0, scrollY);
-  };
-}, [Boolean(cita)]);
-
+  useEffect(() => {
+    if (!cita) return;
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const estilosOriginales = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    };
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
+    return () => {
+      Object.assign(body.style, estilosOriginales);
+      window.scrollTo(0, scrollY);
+    };
+  }, [Boolean(cita)]);
   useEffect(() => {
     if (!cita?.id) {
       setEvidenciasGuardadas([]);
@@ -133,7 +130,7 @@ useEffect(() => {
         const agencia = encodeURIComponent(cita.agencia || "");
         const detalle = await peticionCRM(
           `/hojaingresos/api/hoja-ingresos/${cita.id}/?agencia=${agencia}`,
-          { signal: control.signal }
+          { publico: true, signal: control.signal }
         );
         if (control.signal.aborted) return;
         setEvidenciasGuardadas(
@@ -159,6 +156,7 @@ useEffect(() => {
     if (cita?.id === nuevaCita?.id) return;
     limpiar();
     setCita(nuevaCita);
+    setEditorTarjetaAbierto(false);
     setEvidenciasGuardadas([]);
     setAnalisisGuardados([]);
     setProgresoIA("");
@@ -218,10 +216,12 @@ useEffect(() => {
       if (video) video.srcObject = null;
     };
   }, [camaraAbierta]);
-
   function cerrarExpediente() {
     if (procesando || analizando || cargandoCita) return;
-
+    if (editorTarjetaAbierto) {
+      setEditorTarjetaAbierto(false);
+      return;
+    }
     if (
       archivos.length > 0 &&
       !window.confirm(
@@ -230,10 +230,8 @@ useEffect(() => {
     ) {
       return;
     }
-
     seleccionarCita(null);
   }
-
   function abrirCamara() {
     if (procesando || analizando || archivos.length >= MAX_IMAGENES) return;
     setErrorCamara("");
@@ -340,7 +338,6 @@ useEffect(() => {
   }
   async function analizar(forzar = false) {
     if (!cita?.id || procesando || analizando || cargandoCita) return;
-
     const analisisPorEvidencia = new Map(
       analisisGuardados.map((item) => [String(item.evidencia_id), item])
     );
@@ -349,17 +346,14 @@ useEffect(() => {
       const guardado = analisisPorEvidencia.get(String(evidencia.id));
       return forzar || !guardado || !(guardado.imagen_url || guardado.imagen_resultado);
     });
-
     if (archivos.length === 0 && anterioresPendientes.length === 0) {
       setError("No hay fotografías pendientes de analizar en esta cita.");
       return;
     }
-
     setAnalizando(true);
     setError("");
     try {
       let pendientes = [...anterioresPendientes];
-
       if (archivos.length > 0) {
         setProgresoIA(`Guardando ${archivos.length} fotografías en la cita...`);
         const formulario = new FormData();
@@ -375,13 +369,12 @@ useEffect(() => {
         pendientes = [...pendientes, ...nuevasEvidencias.filter(esFotografia)];
         limpiar();
       }
-
       // FASE 1: generar y mostrar primero TODOS los reportes de texto.
       for (let i = 0; i < pendientes.length; i++) {
         const evidencia = pendientes[i];
         const existente = analisisPorEvidencia.get(String(evidencia.id));
         if (!forzar && existente?.reporte &&
-            !(existente.imagen_url || existente.imagen_resultado)) {
+          !(existente.imagen_url || existente.imagen_resultado)) {
           // Hay texto guardado; no volvemos a cobrar/generar el análisis textual.
           continue;
         }
@@ -405,7 +398,6 @@ useEffect(() => {
         // Se abre la zona de resultados mientras la generación visual sigue en curso.
         setResultado((actual) => actual || { textoListo: true });
       }
-
       // FASE 2: añadir imágenes sin volver a analizar los textos.
       for (let i = 0; i < pendientes.length; i++) {
         const evidencia = pendientes[i];
@@ -483,11 +475,10 @@ useEffect(() => {
                         <h2 className="text-[15px] font-bold text-vw">
                           {cita.cliente || "Expediente de inspección"}
                         </h2>
-
                         <button
                           type="button"
                           onClick={cerrarExpediente}
-                          disabled={bloqueado || cargandoCita}
+                          disabled={bloqueado || cargandoCita || editorTarjetaAbierto}
                           aria-label="Cerrar expediente"
                           className="grid h-9 w-9 place-items-center rounded-lg text-vw hover:bg-vw-claro disabled:opacity-50"
                         >
@@ -495,164 +486,170 @@ useEffect(() => {
                         </button>
                       </div>
                       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
-                      <SelectorCita
-                        cita={cita}
-                        bloqueado={bloqueado || cargandoCita}
-                        onSeleccion={cerrarExpediente}
-                      />
-                    <div id="carga" className="min-w-0 scroll-mt-24">
-                      <CargaEvidencia
-                        archivos={archivos}
-                        maxImagenes={MAX_IMAGENES}
-                        arrastrando={arrastrando}
-                        procesando={procesando}
-                        bloqueado={bloqueado || cargandoCita}
-                        cita={cita}
-                        inputRef={selectorRef}
-                        onNuevos={agregarArchivos}
-                        onArrastrando={setArrastrando}
-                        onCamara={abrirCamara}
-                        onEliminar={eliminarArchivo}
-                        onLimpiar={limpiar}
-                      />
-                    </div>
-                    <PanelAnalisis
-                      bloqueado={bloqueado || cargandoCita || !cita}
-                      analizando={analizando}
-                      total={totalPorAnalizar}
-                      maxImagenes={MAX_IMAGENES}
-                      analizados={analisisGuardados.length}
-                      error={error}
-                      cita={cita}
-                      onAnalizar={analizar}
-                      progresoIA={progresoIA}
-                    />
-                    <section className="rounded-2xl border border-vw-borde bg-white p-4 sm:p-5">
-                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <h3 className="text-[14px] font-bold text-vw">
-                            Evidencias guardadas de la cita
-                          </h3>
-                          <p className="mt-1 text-[12px] text-slate-500">
-                            Archivos almacenados en el CRM
-                          </p>
-                        </div>
-                        <span className="rounded-lg bg-vw-claro px-3 py-1 text-[11px] font-bold text-vw">
-                          {evidenciasGuardadas.length} archivos
-                        </span>
-                      </div>
-                      {cargandoCita ? (
-                        <p className="text-[12px] text-slate-500">
-                          Cargando evidencias...
-                        </p>
-                      ) : evidenciasGuardadas.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-vw-borde p-6 text-center text-[12px] text-slate-500">
-                          Esta cita todavía no tiene evidencias guardadas.
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-3 gap-2 min-[420px]:grid-cols-4 md:grid-cols-6 xl:grid-cols-8">
-                          {evidenciasGuardadas.map((evidencia) => {
-                            const esImagen = esFotografia(evidencia);
-                            const esVideo =
-                              evidencia.tipo_mime?.startsWith("video/") ||
-                              /\.(mp4|mov|webm|m4v)$/i.test(evidencia.nombre_original || "");
-                            const procesada = idsAnalizados.has(String(evidencia.id));
-                            return (
-                              <div
-                                key={evidencia.id}
-                                className="overflow-hidden rounded-lg border border-vw-borde bg-white"
-                              >
-                                <div className="flex aspect-square items-center justify-center bg-slate-100">
-                                  {esImagen || esVideo ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => abrirEvidencia(evidencia)}
-                                      aria-label={`Ver ${evidencia.nombre_original || "evidencia"}`}
-                                      className="h-full w-full"
-                                    >
-                                      {esImagen ? (
-                                        <img
-                                          src={evidencia.url}
-                                          alt={evidencia.nombre_original || "Fotografía"}
-                                          className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-                                          loading="lazy"
-                                        />
-                                      ) : (
-                                        <span className="relative flex h-full w-full items-center justify-center bg-slate-900">
-                                          <video
-                                            src={evidencia.url}
-                                            preload="metadata"
-                                            muted
-                                            className="h-full w-full object-contain opacity-80"
-                                          />
-                                          <span className="absolute grid h-11 w-11 place-items-center rounded-full bg-vw-btn/85 text-white shadow-lg">
-                                            <Play size={18} fill="currentColor" />
-                                          </span>
-                                        </span>
-                                      )}
-                                    </button>
-                                  ) : (
-                                    <a
-                                      href={evidencia.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-[12px] font-semibold text-vw"
-                                    >
-                                      Ver archivo
-                                    </a>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-1.5 px-2 py-1.5">
-                                  <span
-                                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${!esImagen
-                                      ? "bg-slate-300"
-                                      : procesada
-                                        ? "bg-emerald-500"
-                                        : "bg-amber-500"
-                                      }`}
-                                    title={
-                                      !esImagen
-                                        ? esVideo
-                                          ? "Video"
-                                          : "Documento"
-                                        : procesada
-                                          ? "Analizada"
-                                          : "Pendiente de IA"
-                                    }
-                                  />
-                                  <p
-                                    className="min-w-0 truncate text-[10px] font-medium text-slate-600"
-                                    title={evidencia.nombre_original}
-                                  >
-                                    {evidencia.nombre_original || "Evidencia"}
+                        {editorTarjetaAbierto ? (
+                          <PanelTarjetaViajera cita={cita} onCerrar={() => setEditorTarjetaAbierto(false)} />
+                        ) : (
+                          <>
+                            <SelectorCita
+                              cita={cita}
+                              bloqueado={bloqueado || cargandoCita}
+                              onSeleccion={cerrarExpediente}
+                              onEditarTarjeta={() => setEditorTarjetaAbierto(true)}
+                            />
+                            <div id="carga" className="min-w-0 scroll-mt-24">
+                              <CargaEvidencia
+                                archivos={archivos}
+                                maxImagenes={MAX_IMAGENES}
+                                arrastrando={arrastrando}
+                                procesando={procesando}
+                                bloqueado={bloqueado || cargandoCita}
+                                cita={cita}
+                                inputRef={selectorRef}
+                                onNuevos={agregarArchivos}
+                                onArrastrando={setArrastrando}
+                                onCamara={abrirCamara}
+                                onEliminar={eliminarArchivo}
+                                onLimpiar={limpiar}
+                              />
+                            </div>
+                            <PanelAnalisis
+                              bloqueado={bloqueado || cargandoCita || !cita}
+                              analizando={analizando}
+                              total={totalPorAnalizar}
+                              maxImagenes={MAX_IMAGENES}
+                              analizados={analisisGuardados.length}
+                              error={error}
+                              cita={cita}
+                              onAnalizar={analizar}
+                              progresoIA={progresoIA}
+                            />
+                            <section className="rounded-2xl border border-vw-borde bg-white p-4 sm:p-5">
+                              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <h3 className="text-[14px] font-bold text-vw">
+                                    Evidencias guardadas de la cita
+                                  </h3>
+                                  <p className="mt-1 text-[12px] text-slate-500">
+                                    Archivos almacenados en el CRM
                                   </p>
                                 </div>
+                                <span className="rounded-lg bg-vw-claro px-3 py-1 text-[11px] font-bold text-vw">
+                                  {evidenciasGuardadas.length} archivos
+                                </span>
                               </div>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                    </section>
-                    {analisisGuardados.length > 0 && (
-              <section id="resultado" className="scroll-mt-24">
-                <Resultados
-                  analisisGuardados={analisisGuardados}
-                  evidenciasGuardadas={evidenciasGuardadas}
-                  analizando={analizando}
-                  cita={cita}
-                  onVolver={() =>
-                    document.getElementById("carga")?.scrollIntoView({
-                      behavior: "smooth",
-                      block: "start",
-                    })
-                  }
-                  onVerImagen={(src, nombre) =>
-                    setVisor({ src, tipo: "imagen", nombre, descarga: src })
-                  }
-                />
-              </section>
-                    )}
+                              {cargandoCita ? (
+                                <p className="text-[12px] text-slate-500">
+                                  Cargando evidencias...
+                                </p>
+                              ) : evidenciasGuardadas.length === 0 ? (
+                                <div className="rounded-xl border border-dashed border-vw-borde p-6 text-center text-[12px] text-slate-500">
+                                  Esta cita todavía no tiene evidencias guardadas.
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-3 gap-2 min-[420px]:grid-cols-4 md:grid-cols-6 xl:grid-cols-8">
+                                  {evidenciasGuardadas.map((evidencia) => {
+                                    const esImagen = esFotografia(evidencia);
+                                    const esVideo =
+                                      evidencia.tipo_mime?.startsWith("video/") ||
+                                      /\.(mp4|mov|webm|m4v)$/i.test(evidencia.nombre_original || "");
+                                    const procesada = idsAnalizados.has(String(evidencia.id));
+                                    return (
+                                      <div
+                                        key={evidencia.id}
+                                        className="overflow-hidden rounded-lg border border-vw-borde bg-white"
+                                      >
+                                        <div className="flex aspect-square items-center justify-center bg-slate-100">
+                                          {esImagen || esVideo ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => abrirEvidencia(evidencia)}
+                                              aria-label={`Ver ${evidencia.nombre_original || "evidencia"}`}
+                                              className="h-full w-full"
+                                            >
+                                              {esImagen ? (
+                                                <img
+                                                  src={evidencia.url}
+                                                  alt={evidencia.nombre_original || "Fotografía"}
+                                                  className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+                                                  loading="lazy"
+                                                />
+                                              ) : (
+                                                <span className="relative flex h-full w-full items-center justify-center bg-slate-900">
+                                                  <video
+                                                    src={evidencia.url}
+                                                    preload="metadata"
+                                                    muted
+                                                    className="h-full w-full object-contain opacity-80"
+                                                  />
+                                                  <span className="absolute grid h-11 w-11 place-items-center rounded-full bg-vw-btn/85 text-white shadow-lg">
+                                                    <Play size={18} fill="currentColor" />
+                                                  </span>
+                                                </span>
+                                              )}
+                                            </button>
+                                          ) : (
+                                            <a
+                                              href={evidencia.url}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-[12px] font-semibold text-vw"
+                                            >
+                                              Ver archivo
+                                            </a>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-1.5 px-2 py-1.5">
+                                          <span
+                                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${!esImagen
+                                              ? "bg-slate-300"
+                                              : procesada
+                                                ? "bg-emerald-500"
+                                                : "bg-amber-500"
+                                              }`}
+                                            title={
+                                              !esImagen
+                                                ? esVideo
+                                                  ? "Video"
+                                                  : "Documento"
+                                                : procesada
+                                                  ? "Analizada"
+                                                  : "Pendiente de IA"
+                                            }
+                                          />
+                                          <p
+                                            className="min-w-0 truncate text-[10px] font-medium text-slate-600"
+                                            title={evidencia.nombre_original}
+                                          >
+                                            {evidencia.nombre_original || "Evidencia"}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </section>
+                            {analisisGuardados.length > 0 && (
+                              <section id="resultado" className="scroll-mt-24">
+                                <Resultados
+                                  analisisGuardados={analisisGuardados}
+                                  evidenciasGuardadas={evidenciasGuardadas}
+                                  analizando={analizando}
+                                  cita={cita}
+                                  onVolver={() =>
+                                    document.getElementById("carga")?.scrollIntoView({
+                                      behavior: "smooth",
+                                      block: "start",
+                                    })
+                                  }
+                                  onVerImagen={(src, nombre) =>
+                                    setVisor({ src, tipo: "imagen", nombre, descarga: src })
+                                  }
+                                />
+                              </section>
+                            )}
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -661,7 +658,6 @@ useEffect(() => {
             </div>
           </div>
         </main>
-
         <input
           ref={selectorRef}
           type="file"
