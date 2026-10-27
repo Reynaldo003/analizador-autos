@@ -340,58 +340,53 @@ useEffect(() => {
   }
   async function analizar(forzar = false) {
     if (!cita?.id || procesando || analizando || cargandoCita) return;
-    const analizadas = new Set(
-      analisisGuardados.map((item) => String(item.evidencia_id))
+
+    const analisisPorEvidencia = new Map(
+      analisisGuardados.map((item) => [String(item.evidencia_id), item])
     );
-    const anterioresPendientes = evidenciasGuardadas.filter(
-      (evidencia) =>
-        esFotografia(evidencia) &&
-        (forzar || !analizadas.has(String(evidencia.id)))
-    );
+    const anterioresPendientes = evidenciasGuardadas.filter((evidencia) => {
+      if (!esFotografia(evidencia)) return false;
+      const guardado = analisisPorEvidencia.get(String(evidencia.id));
+      return forzar || !guardado || !(guardado.imagen_url || guardado.imagen_resultado);
+    });
+
     if (archivos.length === 0 && anterioresPendientes.length === 0) {
       setError("No hay fotografías pendientes de analizar en esta cita.");
       return;
     }
+
     setAnalizando(true);
-    setResultado(null);
     setError("");
     try {
       let pendientes = [...anterioresPendientes];
-      // PASO 1: Guardar las fotografías nuevas como evidencias de la cita.
+
       if (archivos.length > 0) {
         setProgresoIA(`Guardando ${archivos.length} fotografías en la cita...`);
         const formulario = new FormData();
-        archivos.forEach((item) => {
-          formulario.append("archivos", item.archivo, item.archivo.name);
-        });
+        archivos.forEach((item) => formulario.append("archivos", item.archivo, item.archivo.name));
         const nuevasEvidencias = await peticionCRM(
           `/hojaingresos/api/hoja-ingresos/${cita.id}/evidencias/`,
-          {
-            publico: true,
-            method: "POST",
-            body: formulario,
-          }
+          { publico: true, method: "POST", body: formulario }
         );
         if (!Array.isArray(nuevasEvidencias)) {
           throw new Error("El servidor no devolvió las evidencias guardadas.");
         }
-        // Quedan guardadas incluso si falla el análisis posterior.
-        setEvidenciasGuardadas((anteriores) => [
-          ...anteriores,
-          ...nuevasEvidencias,
-        ]);
-        pendientes = [
-          ...pendientes,
-          ...nuevasEvidencias.filter(esFotografia),
-        ];
-        // Los archivos locales ya están en Django; evitamos subirlos dos veces.
+        setEvidenciasGuardadas((anteriores) => [...anteriores, ...nuevasEvidencias]);
+        pendientes = [...pendientes, ...nuevasEvidencias.filter(esFotografia)];
         limpiar();
       }
-      // PASO 2: Ejecutar el análisis sobre cada fotografía sin analizar.
+
+      // FASE 1: generar y mostrar primero TODOS los reportes de texto.
       for (let i = 0; i < pendientes.length; i++) {
         const evidencia = pendientes[i];
+        const existente = analisisPorEvidencia.get(String(evidencia.id));
+        if (!forzar && existente?.reporte &&
+            !(existente.imagen_url || existente.imagen_resultado)) {
+          // Hay texto guardado; no volvemos a cobrar/generar el análisis textual.
+          continue;
+        }
         setProgresoIA(
-          `Analizando fotografía ${i + 1} de ${pendientes.length}: ${evidencia.nombre_original || "Evidencia"}`
+          `Generando texto ${i + 1} de ${pendientes.length}: ${evidencia.nombre_original || "Evidencia"}`
         );
         const analisis = await peticionCRM(
           `/hojaingresos/api/hoja-ingresos/${cita.id}/analizar-ia/`,
@@ -399,18 +394,40 @@ useEffect(() => {
             publico: true,
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ evidencia_id: evidencia.id, forzar }),
+            body: JSON.stringify({ evidencia_id: evidencia.id, fase: "texto", forzar }),
           }
         );
-        // PASO 3: Agregar el resultado a los análisis de la cita.
+        analisisPorEvidencia.set(String(evidencia.id), analisis);
         setAnalisisGuardados((anteriores) => [
           analisis,
-          ...anteriores.filter(
-            (item) => String(item.evidencia_id) !== String(analisis.evidencia_id)
-          ),
+          ...anteriores.filter((item) => String(item.evidencia_id) !== String(analisis.evidencia_id)),
+        ]);
+        // Se abre la zona de resultados mientras la generación visual sigue en curso.
+        setResultado((actual) => actual || { textoListo: true });
+      }
+
+      // FASE 2: añadir imágenes sin volver a analizar los textos.
+      for (let i = 0; i < pendientes.length; i++) {
+        const evidencia = pendientes[i];
+        setProgresoIA(
+          `Generando imagen anotada ${i + 1} de ${pendientes.length}: ${evidencia.nombre_original || "Evidencia"}`
+        );
+        const analisis = await peticionCRM(
+          `/hojaingresos/api/hoja-ingresos/${cita.id}/analizar-ia/`,
+          {
+            publico: true,
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ evidencia_id: evidencia.id, fase: "imagen" }),
+          }
+        );
+        analisisPorEvidencia.set(String(evidencia.id), analisis);
+        setAnalisisGuardados((anteriores) => [
+          analisis,
+          ...anteriores.filter((item) => String(item.evidencia_id) !== String(analisis.evidencia_id)),
         ]);
       }
-      setResultado({ completado: true });
+      setResultado((actual) => actual || { completado: true });
     } catch (error) {
       console.error("Error en Inspector IA:", error);
       setError(error.message || "No se pudo completar el análisis.");
@@ -420,14 +437,15 @@ useEffect(() => {
     }
   }
   const bloqueado = procesando || analizando;
-  const idsAnalizados = new Set(
-    analisisGuardados.map((item) => String(item.evidencia_id))
+  const analisisPorId = new Map(
+    analisisGuardados.map((item) => [String(item.evidencia_id), item])
   );
-  const evidenciasPendientes = evidenciasGuardadas.filter(
-    (evidencia) =>
-      esFotografia(evidencia) &&
-      !idsAnalizados.has(String(evidencia.id))
-  );
+  const idsAnalizados = new Set(analisisPorId.keys());
+  const evidenciasPendientes = evidenciasGuardadas.filter((evidencia) => {
+    if (!esFotografia(evidencia)) return false;
+    const analisis = analisisPorId.get(String(evidencia.id));
+    return !analisis || !(analisis.imagen_url || analisis.imagen_resultado);
+  });
   const totalPorAnalizar = archivos.length + evidenciasPendientes.length;
   function abrirEvidencia(evidencia) {
     const esVideo =
@@ -621,6 +639,7 @@ useEffect(() => {
                 <Resultados
                   analisisGuardados={analisisGuardados}
                   evidenciasGuardadas={evidenciasGuardadas}
+                  analizando={analizando}
                   cita={cita}
                   onVolver={() =>
                     document.getElementById("carga")?.scrollIntoView({

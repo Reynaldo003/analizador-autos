@@ -108,6 +108,7 @@ export default function Resultados({
   cita,
   onVolver,
   onVerImagen,
+  analizando = false,
 }) {
   const [orden, setOrden] = useState("gravedad");
 
@@ -162,6 +163,9 @@ export default function Resultados({
   const conteo = contarSeveridades(danos);
 
   const totalImagenes = analisisGuardados.length;
+  const imagenesPendientes = analisisGuardados.filter(
+    (analisis) => !analisis.imagen_url && !analisis.imagen_resultado
+  ).length;
 
   const fechaTexto = formatearFecha(
     analisisGuardados
@@ -353,8 +357,14 @@ export default function Resultados({
                 Resultados del análisis
               </h2>
 
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-400/15 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-300">
-                Completado
+              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${
+                imagenesPendientes > 0
+                  ? "border-amber-300/40 bg-amber-300/15 text-amber-200"
+                  : "border-emerald-400/40 bg-emerald-400/15 text-emerald-300"
+              }`}>
+                {imagenesPendientes > 0
+                  ? `Texto listo · ${imagenesPendientes} ${imagenesPendientes === 1 ? "imagen pendiente" : "imágenes pendientes"}`
+                  : "Completado"}
               </span>
             </div>
 
@@ -481,6 +491,7 @@ export default function Resultados({
                     ) : (
                       <div className="space-y-4">
                         {fotosOrdenadas.map((foto) => {
+                          const imagenLista = Boolean(foto.analisis?.imagen_url || foto.analisis?.imagen_resultado);
                           const src = foto.evidencia?.url || foto.analisis?.imagen_url;
 
                           return (
@@ -521,6 +532,13 @@ export default function Resultados({
                                     {foto.objetos.length}{" "}
                                     {foto.objetos.length === 1 ? "objeto ajeno" : "objetos ajenos"}
                                   </p>
+                                  {!imagenLista && (
+                                    <p role="status" className="mt-1.5 text-[12px] font-semibold text-amber-700">
+                                      {analizando
+                                        ? "Reporte listo · Generando imagen anotada…"
+                                        : "Reporte listo · Imagen anotada pendiente"}
+                                    </p>
+                                  )}
                                 </div>
 
                                 <button
