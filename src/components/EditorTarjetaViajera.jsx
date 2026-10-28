@@ -5,40 +5,6 @@ const VALORES_VACIOS = {};
 const ANCHO_PDF = 609;
 const ALTO_PDF = 794.25;
 
-// Ejemplos: agrega aquí los demás campos conforme los vayas ubicando.
-const CAMPOS = [
-    {
-        nombre: "observaciones_taller",
-        titulo: "Observaciones del taller",
-        pagina: 1,
-        x: 80,
-        y: 735,
-        ancho: 355,
-        alto: 16,
-        tipo: "text",
-    },
-    {
-        nombre: "km_inicial_prueba_1",
-        titulo: "Kilometraje inicial (prueba 1)",
-        pagina: 2,
-        x: 70,
-        y: 114,
-        ancho: 76,
-        alto: 12,
-        tipo: "number",
-    },
-    {
-        nombre: "km_final_prueba_1",
-        titulo: "Kilometraje final (prueba 1)",
-        pagina: 2,
-        x: 165,
-        y: 114,
-        ancho: 75,
-        alto: 12,
-        tipo: "number",
-    },
-];
-
 export default function EditorTarjetaViajera({
     cita,
     campos = [],
@@ -146,6 +112,51 @@ export default function EditorTarjetaViajera({
                 >
                     {valores[campo.nombre] ? "×" : ""}
                 </button>
+            );
+        }
+
+        if (campo.nombre === "nivel_gasolina") {
+            // Mismas medidas y niveles que el backend V5 (tarjeta_viajera.py).
+            const niveles = { reserva: 0, "1/4": 2, "1/2": 4, "3/4": 6, lleno: 8 };
+            const cantidad = niveles[String(valores[campo.nombre] ?? "").trim().toLowerCase()] ?? 0;
+            const x0 = 231.5;
+            const x1 = 259.4;
+            const alto = 11.6;
+            const paso = 12.8;
+            const base = 369.7;
+
+            return (
+                <div key={campo.nombre}>
+                    {Array.from({ length: cantidad }, (_, indice) => {
+                        const yInferior = base - indice * paso;
+                        return (
+                            <div
+                                key={indice}
+                                aria-hidden="true"
+                                className="pointer-events-none absolute"
+                                style={{
+                                    left: `${(x0 / ANCHO_PDF) * 100}%`,
+                                    top: `${((yInferior - alto) / ALTO_PDF) * 100}%`,
+                                    width: `${((x1 - x0) / ANCHO_PDF) * 100}%`,
+                                    height: `${(alto / ALTO_PDF) * 100}%`,
+                                    backgroundColor: "rgb(232, 23, 92)",
+                                }}
+                            />
+                        );
+                    })}
+                    {campo.opciones.map((opcion) => (
+                        <button
+                            key={`${campo.nombre}-${opcion.valor}`}
+                            type="button"
+                            title={`${campo.titulo}: ${opcion.titulo}`}
+                            aria-label={`${campo.titulo}: ${opcion.titulo}`}
+                            aria-pressed={valores[campo.nombre] === opcion.valor}
+                            onClick={() => actualizarCampo(campo.nombre, opcion.valor)}
+                            className="absolute hidden h-3 w-5 rounded-sm hover:bg-blue-300/30 xl:block"
+                            style={posicion(opcion.x, opcion.y)}
+                        />
+                    ))}
+                </div>
             );
         }
 
