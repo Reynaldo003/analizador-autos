@@ -127,6 +127,17 @@ export default function EditorTarjetaViajera({
 
             return (
                 <div key={campo.nombre}>
+                    <div
+                        aria-hidden="true"
+                        className="pointer-events-none absolute"
+                        style={{
+                            left: `${(231.7 / ANCHO_PDF) * 100}%`,
+                            top: `${(371.6 / ALTO_PDF) * 100}%`,
+                            width: `${(27.6 / ANCHO_PDF) * 100}%`,
+                            height: `${(9.5 / ALTO_PDF) * 100}%`,
+                            backgroundColor: "rgb(0, 102, 184)",
+                        }}
+                    />
                     {Array.from({ length: cantidad }, (_, indice) => {
                         const yInferior = base - indice * paso;
                         return (
@@ -139,7 +150,7 @@ export default function EditorTarjetaViajera({
                                     top: `${((yInferior - alto) / ALTO_PDF) * 100}%`,
                                     width: `${((x1 - x0) / ANCHO_PDF) * 100}%`,
                                     height: `${(alto / ALTO_PDF) * 100}%`,
-                                    backgroundColor: "rgb(232, 23, 92)",
+                                    backgroundColor: "rgb(0, 102, 184)",
                                 }}
                             />
                         );
